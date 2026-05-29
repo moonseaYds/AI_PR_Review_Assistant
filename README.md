@@ -2,16 +2,30 @@
 
 ## 项目简介
 
-本项目选择暑期实习比赛题目三：AI PR Review 助手。作品面向开发者在 Pull Request 评审中的真实需求，目标是通过 AI 辅助分析提升代码评审效率与质量。
+本项目选择暑期实习比赛题目三：AI PR Review 助手，定位为面向开发者工作流的轻量 AI PR Review 工具，而非一个网站平台。
 
-第一阶段定位为“Spring Boot 后端 + 简单页面”的工具：用户输入 GitHub PR 链接后，系统获取 PR 变更内容，整理 diff 上下文，并调用 DeepSeek API 生成 PR 变更总结、风险代码识别和 Review 建议。
+作品面向开发者在 Pull Request 评审中的真实需求，目标是通过 AI 辅助分析提升代码评审效率与质量。核心能力为：用户输入 GitHub PR 链接后，系统获取 PR 变更内容，整理 diff 上下文，并调用 DeepSeek API 生成 PR 变更总结、风险代码识别和 Review 建议。
+
+### 多端工具矩阵
+
+当前 Web 页面是 Demo 入口，但不是唯一产品形态。同一套后端 Review 能力（`/api/reviews/analyze`）可服务于多种入口：
+
+| 入口 | 形态 | 说明 |
+|------|------|------|
+| **Web Demo** | 静态页面（本轮已完成） | 评委和用户无需安装额外工具即可体验完整链路 |
+| **IDE 插件** | IntelliJ IDEA 插件 | 开发者在看代码或提交 PR 前触发 Review |
+| **浏览器插件** | Chrome/Edge 扩展 | 在 GitHub PR 页面一键分析当前 PR |
+| **CLI/脚本** | 命令行工具 | 输入 PR URL 即可获取报告，适合 CI 和自动化脚本 |
+| **CI Bot** | GitHub Actions / Webhook | PR 流程中自动生成 Review 报告或评论 |
+
+各入口只负责收集 PR URL 和展示报告，核心分析逻辑统一复用后端 API，避免重复实现。
 
 ## 核心功能规划
 
 - PR 变更总结：概括本次 PR 修改了哪些模块和行为。
 - 风险代码识别：发现可能的空指针、异常处理、接口兼容性、性能、敏感信息和可维护性风险。
 - Review 建议生成：给出可执行的修改建议，并标注风险等级和相关文件。
-- 报告展示：通过后端接口和简单页面展示分析结果，方便 Demo 演示。
+- 报告展示：通过端到端 API 和 Web Demo 页面展示分析结果，方便 Demo 演示。
 
 ## 当前开发进度
 
@@ -21,6 +35,7 @@
 - 已完成 Diff 上下文整理与截断能力，可将 PR 变更文件列表转换为结构化 Diff Review Context，支持单文件和总 patch 长度截断，为后续 DeepSeek AI Review 提供可控输入。
 - 已完成 DeepSeek AI Review 引擎，可基于 DiffReviewContext 调用 DeepSeek API 生成结构化 Review 报告，包含 PR 变更总结、风险等级（LOW/MEDIUM/HIGH）、风险列表和 Review 建议。
 - 已完成端到端 Review Report API，用户只需输入 PR 链接即可一次性完成 URL 解析、PR 获取、Diff 上下文构建和 AI Review 分析的完整流程。
+- 已完成简单 Web 演示页面，可作为 Demo 入口，支持输入 PR 链接、调用分析接口并展示结构化 Review 报告。
 
 ## 技术选型
 
@@ -56,7 +71,7 @@ DeepSeek AI Review 分析
 Review 报告 API（端到端 / 分段均可）
         |
         v
-页面展示（待实现）
+Web Demo 页面展示（已完成）
 ```
 
 后续模块规划：
@@ -66,6 +81,18 @@ Review 报告 API（端到端 / 分段均可）
 - `review`：构造模型提示词，调用 DeepSeek API，并解析结构化 Review 结果。
 - `report`：组装变更总结、风险点和建议，提供给接口或页面展示。
 - `common`：统一异常处理、响应结构和配置读取。
+
+### 前端技术选型
+
+当前 Web Demo 选择原生 HTML / CSS / JS 模块化结构，不引入 React / Vue / Vite，理由：
+
+- 当前目标是比赛 Demo 和最小可用工具入口，页面只承担输入 PR 链接、调用 API、展示报告一条主流程。
+- Spring Boot 已能直接托管静态资源，无需新增前端构建、部署和依赖说明。
+- 原生方案能降低评委运行和理解成本，也减少提交时由前端依赖带来的环境风险。
+- 页面采用清晰模块边界：API 调用（`js/api.js`）、渲染层（`js/render.js`）、状态流（`js/app.js`）和样式（`styles.css`）分离，避免写成一次性大文件。
+- 不引入外部 CDN、远程字体、远程图片或第三方前端库，完全离线可用。
+
+**未来升级条件**：当出现报告历史、规则配置、团队空间、复杂导航、可视化图表或多页面工作台时，再单独开 PR 迁移为 Vue/React + Vite 独立前端工程。届时多端入口（CLI/IDE 插件等）的展示层各自独立，但仍复用同一后端 API。
 
 ## 环境变量
 
@@ -110,6 +137,15 @@ mvn spring-boot:run
 ```text
 http://localhost:8080
 ```
+
+### Web Demo 使用流程
+
+1. 启动服务（确保已配置 `DEEPSEEK_API_KEY` 和可选的 `GITHUB_TOKEN`）。
+2. 浏览器打开 `http://localhost:8080/`。
+3. 在输入框中填写 GitHub PR 链接（如 `https://github.com/spring-projects/spring-boot/pull/12345`）。
+4. 点击"开始分析"。
+5. 等待数秒后，页面展示 PR 信息、变更统计、AI 总结、风险等级、风险列表和 Review 建议。
+6. 如未配置 API Key，页面会展示后端返回的清晰错误信息。
 
 ## 当前接口
 

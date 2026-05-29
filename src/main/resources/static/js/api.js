@@ -1,0 +1,42 @@
+/**
+ * API layer — encapsulates the call to POST /api/reviews/analyze.
+ */
+const Api = (() => {
+    const ANALYZE_URL = "/api/reviews/analyze";
+
+    /**
+     * Analyze a GitHub PR by URL.
+     * @param {string} prUrl
+     * @returns {Promise<object>} parsed JSON response body
+     * @throws {Error} with backend message when the response is not 2xx
+     */
+    async function analyzePR(prUrl) {
+        let response;
+        try {
+            response = await fetch(ANALYZE_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ prUrl }),
+            });
+        } catch (e) {
+            throw new Error("网络请求失败，请检查网络连接和后端服务是否启动");
+        }
+
+        if (!response.ok) {
+            let message = "服务器返回错误 (" + response.status + ")";
+            try {
+                const body = await response.json();
+                if (body && body.message) {
+                    message = body.message;
+                }
+            } catch (_) {
+                // Response body is not JSON; use default message
+            }
+            throw new Error(message);
+        }
+
+        return response.json();
+    }
+
+    return { analyzePR };
+})();
