@@ -11,13 +11,21 @@ import org.springframework.web.bind.annotation.RestController;
 public class PullRequestParseController {
 
     private final GitHubPullRequestUrlParser parser;
+    private final GitHubPrFetcher fetcher;
 
-    public PullRequestParseController(GitHubPullRequestUrlParser parser) {
+    public PullRequestParseController(GitHubPullRequestUrlParser parser, GitHubPrFetcher fetcher) {
         this.parser = parser;
+        this.fetcher = fetcher;
     }
 
     @PostMapping("/parse-pr-url")
     public GitHubPullRequestRef parsePullRequestUrl(@Valid @RequestBody ParsePullRequestUrlRequest request) {
         return parser.parse(request.prUrl());
+    }
+
+    @PostMapping("/fetch-pr")
+    public PrFetchResult fetchPullRequest(@Valid @RequestBody FetchPullRequestRequest request) {
+        GitHubPullRequestRef ref = parser.parse(request.prUrl());
+        return fetcher.fetch(ref);
     }
 }

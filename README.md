@@ -17,6 +17,7 @@
 
 - 已完成项目初始化、技术选型说明和密钥保护配置。
 - 已完成 GitHub PR 链接解析接口，可从标准 PR 链接中提取 owner、repo 和 pull number。
+- 已完成 GitHub PR 获取能力，可通过 PR 链接获取 PR 元信息（title、author、state、baseBranch、headBranch）和变更文件列表（filename、status、additions、deletions、changes、patch）。
 
 ## 技术选型
 
@@ -129,6 +130,66 @@ Content-Type: application/json
   "repo": "spring-boot",
   "pullNumber": 12345,
   "normalizedUrl": "https://github.com/spring-projects/spring-boot/pull/12345"
+}
+```
+
+### 获取 GitHub PR 信息
+
+```http
+POST /api/reviews/fetch-pr
+Content-Type: application/json
+```
+
+请求示例：
+
+```json
+{
+  "prUrl": "https://github.com/spring-projects/spring-boot/pull/12345"
+}
+```
+
+成功响应示例：
+
+```json
+{
+  "owner": "spring-projects",
+  "repo": "spring-boot",
+  "pullNumber": 12345,
+  "title": "Fix login bug",
+  "author": "octocat",
+  "state": "open",
+  "baseBranch": "main",
+  "headBranch": "feature/login-fix",
+  "changedFiles": [
+    {
+      "filename": "src/main/java/App.java",
+      "status": "modified",
+      "additions": 10,
+      "deletions": 3,
+      "changes": 13,
+      "patch": "@@ -1,3 +1,10 @@ ..."
+    }
+  ]
+}
+```
+
+非法 PR URL 返回 400：
+
+```json
+{
+  "code": "BAD_REQUEST",
+  "message": "当前仅支持 github.com 的 PR 链接",
+  "timestamp": "2025-01-01T00:00:00Z"
+}
+```
+
+GitHub API 错误（如 404、限流）返回 502：
+
+```json
+{
+  "code": "UPSTREAM_ERROR",
+  "message": "GitHub PR 不存在：owner/repo#123，请检查 owner、仓库名或 PR 编号是否正确",
+  "timestamp": "2025-01-01T00:00:00Z"
 }
 ```
 
