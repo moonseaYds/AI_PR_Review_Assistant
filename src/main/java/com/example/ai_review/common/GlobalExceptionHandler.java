@@ -1,5 +1,7 @@
 package com.example.ai_review.common;
 
+import com.example.ai_review.common.GitHubApiException;
+import com.example.ai_review.review.DeepSeekApiException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -33,6 +35,13 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(GitHubApiException.class)
     public ResponseEntity<ApiError> handleGitHubApi(GitHubApiException exception) {
+        return ResponseEntity
+                .status(HttpStatus.BAD_GATEWAY)
+                .body(ApiError.upstreamError(exception.getMessage()));
+    }
+
+    @ExceptionHandler(DeepSeekApiException.class)
+    public ResponseEntity<ApiError> handleDeepSeekApi(DeepSeekApiException exception) {
         return ResponseEntity
                 .status(HttpStatus.BAD_GATEWAY)
                 .body(ApiError.upstreamError(exception.getMessage()));
