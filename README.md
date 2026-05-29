@@ -18,6 +18,7 @@
 - 已完成项目初始化、技术选型说明和密钥保护配置。
 - 已完成 GitHub PR 链接解析接口，可从标准 PR 链接中提取 owner、repo 和 pull number。
 - 已完成 GitHub PR 获取能力，可通过 PR 链接获取 PR 元信息（title、author、state、baseBranch、headBranch）和变更文件列表（filename、status、additions、deletions、changes、patch）。
+- 已完成 Diff 上下文整理与截断能力，可将 PR 变更文件列表转换为结构化 Diff Review Context，支持单文件和总 patch 长度截断，为后续 DeepSeek AI Review 提供可控输入。
 
 ## 技术选型
 
@@ -192,6 +193,124 @@ GitHub API 错误（如 404、限流）返回 502：
   "timestamp": "2025-01-01T00:00:00Z"
 }
 ```
+
+### Diff 上下文整理与截断
+
+```http
+POST /api/reviews/build-diff-context
+Content-Type: application/json
+```
+
+本接口用于将 PR 变更文件列表整理为结构化 Diff Review Context，对 patch 做单文件和总长度截断，为后续 DeepSeek AI Review 提供可控输入。
+
+请求示例（小 diff）：
+
+```json
+{
+  "owner": "owner",
+  "repo": "repo",
+  "pullNumber": 123,
+  "title": "PR title",
+  "changedFiles": [
+    {
+      "filename": "src/main/java/App.java",
+      "status": "modified",
+      "additions": 10,
+      "deletions": 3,
+      "changes": 13,
+      "patch": "@@ -1,3 +1,10 @@ ..."
+    }
+  ]
+}
+```
+
+成功响应示例（未截断）：
+
+```json
+{
+  "owner": "owner",
+  "repo": "repo",
+  "pullNumber": 123,
+  "title": "PR title",
+  "totalFiles": 1,
+  "totalAdditions": 10,
+  "totalDeletions": 3,
+  "totalChanges": 13,
+  "truncated": false,
+  "truncationReason": null,
+  "fileContexts": [
+    {
+      "filename": "src/main/java/App.java",
+      "status": "modified",
+      "additions": 10,
+      "deletions": 3,
+      "changes": 13,
+      "patchExcerpt": "@@ -1,3 +1,10 @@ ...",
+      "patchTruncated": false
+    }
+  ]
+}
+```
+
+超长 diff 截断响应示例：
+
+```json
+{
+  "owner": "owner",
+  "repo": "repo",
+  "pullNumber": 456,
+  "title": "Large PR",
+  "totalFiles": 2,
+  "totalAdditions": 200,
+  "totalDeletions": 50,
+  "totalChanges": 250,
+  "truncated": true,
+  "truncationReason": "部分文件 patch 超过单文件限制（4000 字符），已截断",
+  "fileContexts": [
+    {
+      "filename": "BigFile.java",
+      "status": "modified",
+      "additions": 150,
+      "deletions": 30,
+      "changes": 180,
+      "patchExcerpt": "@@ -1 +1 @@ ...（截断至 4000 字符）",
+      "patchTruncated": true
+    }
+  ]
+}
+```
+
+patch 为空文件的处理：
+
+```json
+{
+  "filename": "binary.o",
+  "status": "modified",
+  "additions": 0,
+  "deletions": 0,
+  "changes": 0,
+  "patchExcerpt": "GitHub 未返回 patch，可能是二进制文件或变更过大",
+  "patchTruncated": false
+}
+```
+
+changedFiles 为空时返回 400：
+
+```json
+{
+  "code": "BAD_REQUEST",
+  "message": "changedFiles 不能为空",
+  "timestamp": "2025-01-01T00:00:00Z"
+}
+```
+
+截断规则说明：
+
+- 单文件 patch excerpt 最大 **4000** 字符。
+- 总 patch excerpt 最大 **16000** 字符。
+- patch 为 `null` 或空白时返回占位说明文本。
+- 截断时优先保留文件列表顺序。
+- 截断后 `truncated` 标记为 `true`，`truncationReason` 给出原因。
 
 ## 原创说明
 
