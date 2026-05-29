@@ -1,0 +1,129 @@
+package com.example.ai_review.review;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClient;
+
+import java.util.List;
+
+@Service
+public class DeepSeekClient {
+
+    private final RestClient restClient;
+    private final String apiKey;
+    private final String model;
+    private final ObjectMapper objectMapper;
+
+    public DeepSeekClient(RestClient.Builder restClientBuilder,
+                          @Value("${deepseek.base-url:https://api.deepseek.com}") String baseUrl,
+                          @Value("${deepseek.api-key:}") String apiKey,
+                          @Value("${deepseek.model:deepseek-v4-flash}") String model,
+                          ObjectMapper objectMapper) {
+        this.model = model;
+        this.apiKey = (apiKey != null) ? apiKey.strip() : "";
+        this.objectMapper = objectMapper;
+
+        String url = (baseUrl != null) ? baseUrl.strip() : "https://api.deepseek.com";
+        if (!url.endsWith("/")) {
+            url = url + "/";
+        }
+
+        String chatUrl = url + "chat/completions";
+        this.restClient = restClientBuilder
+                .baseUrl(chatUrl)
+                .defaultHeaders(headers -> {
+                    headers.setContentType(MediaType.APPLICATION_JSON);
+                    if (!this.apiKey.isEmpty()) {
+                        headers.set("Authorization", "Bearer " + this.apiKey);
+                    }
+                })
+                .build();
+    }
+
+    public String chat(String systemPrompt, String userPrompt) {
+        if (apiKey.isEmpty()) {
+            throw new DeepSeekApiException(
+                    "未配置 DeepSeek API Key，请设置环境变量 DEEPSEEK_API_KEY");
+        }
+
+        DeepSeekChatRequest request = new DeepSeekChatRequest(
+                model,
+                List.of(
+                        new DeepSeekChatRequest.Message("system", systemPrompt),
+                        new DeepSeekChatRequest.Message("user", userPrompt)
+                ),
+                0.1,
+                4096,
+                new DeepSeekChatRequest.ResponseFormat("json_object")
+        );
+
+        DeepSeekChatResponse response;
+        try {
+            response = restClient.post()
+                    .body(request)
+                    .retrieve()
+                    .onStatus(status -> status.value() >= 400, (req, res) -> {
+                        byte[] body = res.getBody().readAllBytes();
+                        String bodyText = new String(body);
+                        if (res.getStatusCode().value() == 401 || res.getStatusCode().value() == 403) {
+                            throw new DeepSeekApiException(
+                                    "DeepSeek API 认证失败，请检查 DEEPSEEK_API_KEY 是否正确");
+                        }
+                        throw new DeepSeekApiException(
+                                "DeepSeek API 返回错误 (" + res.getStatusCode().value() + ")："
+                                        + (bodyText.length() > 500 ? bodyText.substring(0, 500) : bodyText));
+                    })
+                    .body(DeepSeekChatResponse.class);
+        } catch (DeepSeekApiException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new DeepSeekApiException(
+                    "调用 DeepSeek API 时发生网络错误，请检查网络连接和 DEEPSEEK_BASE_URL 配置", e);
+        }
+
+        if (response == null || response.choices() == null || response.choices().isEmpty()) {
+            throw new DeepSeekApiException("DeepSeek API 返回了空的响应内容");
+        }
+
+        DeepSeekChatResponse.Message message = response.choices().get(0).message();
+        if (message == null || message.content() == null || message.content().isBlank()) {
+            throw new DeepSeekApiException("DeepSeek API 返回了空的响应内容");
+        }
+
+        return message.content();
+    }
+
+    public ReviewReport parseReviewReport(String jsonContent) {
+        ReviewReport report;
+        try {
+            report = objectMapper.readValue(jsonContent, ReviewReport.class);
+        } catch (JsonProcessingException e) {
+            throw new DeepSeekApiException(
+                    "DeepSeek 返回的内容不是合法的 JSON 格式，无法解析为 Review 报告", e);
+        }
+        if (report.summary() == null || report.summary().isBlank()) {
+            throw new DeepSeekApiException(
+                    "DeepSeek 返回的 Review 报告缺少 summary 字段或为空");
+        }
+        if (report.riskLevel() == null) {
+            throw new DeepSeekApiException(
+                    "DeepSeek 返回的 Review 报告缺少 riskLevel 字段");
+        }
+        if (report.risks() == null) {
+            throw new DeepSeekApiException(
+                    "DeepSeek 返回的 Review 报告缺少 risks 字段");
+        }
+        if (report.suggestions() == null) {
+            throw new DeepSeekApiException(
+                    "DeepSeek 返回的 Review 报告缺少 suggestions 字段");
+        }
+        return report;
+    }
+
+    public String getModel() {
+        return model;
+    }
+}

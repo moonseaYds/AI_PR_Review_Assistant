@@ -19,6 +19,7 @@
 - 已完成 GitHub PR 链接解析接口，可从标准 PR 链接中提取 owner、repo 和 pull number。
 - 已完成 GitHub PR 获取能力，可通过 PR 链接获取 PR 元信息（title、author、state、baseBranch、headBranch）和变更文件列表（filename、status、additions、deletions、changes、patch）。
 - 已完成 Diff 上下文整理与截断能力，可将 PR 变更文件列表转换为结构化 Diff Review Context，支持单文件和总 patch 长度截断，为后续 DeepSeek AI Review 提供可控输入。
+- 已完成 DeepSeek AI Review 引擎，可基于 DiffReviewContext 调用 DeepSeek API 生成结构化 Review 报告，包含 PR 变更总结、风险等级（LOW/MEDIUM/HIGH）、风险列表和 Review 建议。
 
 ## 技术选型
 
@@ -311,6 +312,115 @@ changedFiles 为空时返回 400：
 - patch 为 `null` 或空白时返回占位说明文本。
 - 截断时优先保留文件列表顺序。
 - 截断后 `truncated` 标记为 `true`，`truncationReason` 给出原因。
+
+### AI Review 分析
+
+```http
+POST /api/reviews/ai-review
+Content-Type: application/json
+```
+
+本接口接收 `DiffReviewContext`，调用 DeepSeek API 对 PR 变更进行智能 Code Review，生成结构化报告。
+
+请求示例：
+
+```json
+{
+  "owner": "owner",
+  "repo": "repo",
+  "pullNumber": 123,
+  "title": "PR title",
+  "totalFiles": 1,
+  "totalAdditions": 10,
+  "totalDeletions": 3,
+  "totalChanges": 13,
+  "truncated": false,
+  "truncationReason": null,
+  "fileContexts": [
+    {
+      "filename": "src/main/java/App.java",
+      "status": "modified",
+      "additions": 10,
+      "deletions": 3,
+      "changes": 13,
+      "patchExcerpt": "@@ -1,3 +1,10 @@ ...",
+      "patchTruncated": false
+    }
+  ]
+}
+```
+
+成功响应示例：
+
+```json
+{
+  "summary": "本次 PR 修复了登录模块的空指针问题，代码改动范围小、逻辑清晰。",
+  "riskLevel": "LOW",
+  "risks": [
+    {
+      "file": "src/main/java/App.java",
+      "level": "LOW",
+      "title": "变量命名不够清晰",
+      "reason": "第 12 行变量 x 未体现其业务含义",
+      "suggestion": "建议将 x 改为 loginRetryCount"
+    }
+  ],
+  "suggestions": [
+    {
+      "file": "src/main/java/App.java",
+      "category": "可维护性",
+      "content": "建议为新增的登录重试逻辑添加单元测试"
+    }
+  ],
+  "model": "deepseek-v4-flash"
+}
+```
+
+未发现风险的响应示例：
+
+```json
+{
+  "summary": "本次 PR 变更范围小，代码风格一致，未发现明显风险。",
+  "riskLevel": "LOW",
+  "risks": [],
+  "suggestions": [
+    {
+      "file": "src/main/java/Utils.java",
+      "category": "性能",
+      "content": "可考虑使用 StringBuilder 替代字符串拼接"
+    }
+  ],
+  "model": "deepseek-v4-flash"
+}
+```
+
+fileContexts 为空时返回 400：
+
+```json
+{
+  "code": "BAD_REQUEST",
+  "message": "fileContexts 不能为空，请先调用 /api/reviews/build-diff-context 构造上下文",
+  "timestamp": "2025-01-01T00:00:00Z"
+}
+```
+
+未配置 DEEPSEEK_API_KEY 时返回 502：
+
+```json
+{
+  "code": "UPSTREAM_ERROR",
+  "message": "未配置 DeepSeek API Key，请设置环境变量 DEEPSEEK_API_KEY",
+  "timestamp": "2025-01-01T00:00:00Z"
+}
+```
+
+模型选择与 Prompt 策略说明：
+
+- 默认使用 `deepseek-v4-flash` 模型，可通过 `DEEPSEEK_MODEL` 环境变量切换。
+- 上下文获取：通过 `DiffReviewContext` 接收文件级 patch excerpt，支持截断以保证不超过模型上下文窗口。
+- 误报控制：Prompt 明确要求只输出有证据支持的问题，不确定的问题放入 suggestions 而非 risks。
+- 审查维度：正确性、空指针、异常处理、接口兼容性、安全性、性能、可维护性。
+- 响应格式：要求模型严格输出 JSON，不包含 markdown 标记，便于程序解析。
 
 ## 原创说明
 
