@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI PR Review Assistant</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>AI PR Review Assistant</h1>
+            <p class="header-subtitle">轻量 Review 工具 &mdash; Web Demo</p>
+        </header>
+
+        <form id="review-form" class="review-form" novalidate>
+            <div class="input-group">
+                <label for="pr-url" class="input-label">GitHub PR 链接</label>
+                <input
+                    type="url"
+                    id="pr-url"
+                    class="input-field"
+                    placeholder="https://github.com/owner/repo/pull/123"
+                    autocomplete="off"
+                    required
+                >
+                <p class="input-hint" id="url-hint"></p>
+            </div>
+            <button type="submit" id="submit-btn" class="btn-primary">
+                开始分析
+            </button>
+        </form>
+
+        <div id="result-area" class="result-area" aria-live="polite"></div>
+    </div>
+
+    <footer class="footer">
+        <p>Web 页面为当前 Demo 入口。未来可扩展为 IDE 插件、浏览器插件、CLI/脚本、CI Bot，各入口复用同一后端 <code>/api/reviews/analyze</code>。</p>
+    </footer>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/render.js"></script>
+    <script src="/js/app.js"></script>
+</body>
+</html>
