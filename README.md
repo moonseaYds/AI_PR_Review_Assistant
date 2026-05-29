@@ -13,6 +13,11 @@
 - Review 建议生成：给出可执行的修改建议，并标注风险等级和相关文件。
 - 报告展示：通过后端接口和简单页面展示分析结果，方便 Demo 演示。
 
+## 当前开发进度
+
+- 已完成项目初始化、技术选型说明和密钥保护配置。
+- 已完成 GitHub PR 链接解析接口，可从标准 PR 链接中提取 owner、repo 和 pull number。
+
 ## 技术选型
 
 - 主语言：Java 17
@@ -97,6 +102,34 @@ mvn spring-boot:run
 
 ```text
 http://localhost:8080
+```
+
+## 当前接口
+
+### 解析 GitHub PR 链接
+
+```http
+POST /api/reviews/parse-pr-url
+Content-Type: application/json
+```
+
+请求示例：
+
+```json
+{
+  "prUrl": "https://github.com/spring-projects/spring-boot/pull/12345"
+}
+```
+
+响应示例：
+
+```json
+{
+  "owner": "spring-projects",
+  "repo": "spring-boot",
+  "pullNumber": 12345,
+  "normalizedUrl": "https://github.com/spring-projects/spring-boot/pull/12345"
+}
 ```
 
 ## 原创说明
