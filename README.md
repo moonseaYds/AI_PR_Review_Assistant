@@ -20,6 +20,7 @@
 - 已完成 GitHub PR 获取能力，可通过 PR 链接获取 PR 元信息（title、author、state、baseBranch、headBranch）和变更文件列表（filename、status、additions、deletions、changes、patch）。
 - 已完成 Diff 上下文整理与截断能力，可将 PR 变更文件列表转换为结构化 Diff Review Context，支持单文件和总 patch 长度截断，为后续 DeepSeek AI Review 提供可控输入。
 - 已完成 DeepSeek AI Review 引擎，可基于 DiffReviewContext 调用 DeepSeek API 生成结构化 Review 报告，包含 PR 变更总结、风险等级（LOW/MEDIUM/HIGH）、风险列表和 Review 建议。
+- 已完成端到端 Review Report API，用户只需输入 PR 链接即可一次性完成 URL 解析、PR 获取、Diff 上下文构建和 AI Review 分析的完整流程。
 
 ## 技术选型
 
@@ -52,7 +53,10 @@ Diff 上下文整理与截断
 DeepSeek AI Review 分析
         |
         v
-Review 报告 API / 页面展示
+Review 报告 API（端到端 / 分段均可）
+        |
+        v
+页面展示（待实现）
 ```
 
 后续模块规划：
@@ -421,6 +425,88 @@ fileContexts 为空时返回 400：
 - 误报控制：Prompt 明确要求只输出有证据支持的问题，不确定的问题放入 suggestions 而非 risks。
 - 审查维度：正确性、空指针、异常处理、接口兼容性、安全性、性能、可维护性。
 - 响应格式：要求模型严格输出 JSON，不包含 markdown 标记，便于程序解析。
+
+### 端到端 PR 分析
+
+```http
+POST /api/reviews/analyze
+Content-Type: application/json
+```
+
+本接口是面向 Demo 和用户的统一入口。只需提供 PR 链接，系统自动串联：PR URL 解析 → GitHub PR 获取 → Diff 上下文构建 → DeepSeek AI Review，一次性返回分析报告。
+
+请求示例：
+
+```json
+{
+  "prUrl": "https://github.com/owner/repo/pull/123"
+}
+```
+
+成功响应示例：
+
+```json
+{
+  "owner": "owner",
+  "repo": "repo",
+  "pullNumber": 123,
+  "title": "Fix login bug",
+  "author": "octocat",
+  "state": "open",
+  "baseBranch": "main",
+  "headBranch": "feature/login-fix",
+  "totalFiles": 1,
+  "totalAdditions": 10,
+  "totalDeletions": 3,
+  "totalChanges": 13,
+  "truncated": false,
+  "truncationReason": null,
+  "review": {
+    "summary": "本次 PR 修复了登录模块的空指针问题，代码改动范围小、逻辑清晰。",
+    "riskLevel": "LOW",
+    "risks": [],
+    "suggestions": [],
+    "model": "deepseek-v4-flash"
+  }
+}
+```
+
+非法 PR 链接返回 400：
+
+```json
+{
+  "code": "BAD_REQUEST",
+  "message": "当前仅支持 github.com 的 PR 链接",
+  "timestamp": "2025-01-01T00:00:00Z"
+}
+```
+
+PR 无变更文件返回 400：
+
+```json
+{
+  "code": "BAD_REQUEST",
+  "message": "该 PR 没有变更文件，无法进行 AI Review",
+  "timestamp": "2025-01-01T00:00:00Z"
+}
+```
+
+未配置 API Key 返回 502：
+
+```json
+{
+  "code": "UPSTREAM_ERROR",
+  "message": "未配置 DeepSeek API Key，请设置环境变量 DEEPSEEK_API_KEY",
+  "timestamp": "2025-01-01T00:00:00Z"
+}
+```
+
+说明：
+
+- 该接口一次性完成从 PR 链接到 AI Review 报告的完整流程。
+- 响应同时包含 PR 元信息（owner、repo、title、author、state、分支）、变更统计和截断信息。
+- 不返回完整 patch 内容，避免响应过大。
+- 所有分段接口（`parse-pr-url`、`fetch-pr`、`build-diff-context`、`ai-review`）仍可单独调用。
 
 ## 原创说明
 
