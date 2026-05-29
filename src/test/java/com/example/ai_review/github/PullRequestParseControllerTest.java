@@ -116,4 +116,104 @@ class PullRequestParseControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
     }
+
+    @Test
+    void buildDiffContextReturnsUntruncatedForSmallDiff() throws Exception {
+        mockMvc.perform(post("/api/reviews/build-diff-context")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "owner": "o",
+                                  "repo": "r",
+                                  "pullNumber": 1,
+                                  "title": "Small PR",
+                                  "changedFiles": [
+                                    {
+                                      "filename": "A.java",
+                                      "status": "modified",
+                                      "additions": 3,
+                                      "deletions": 1,
+                                      "changes": 4,
+                                      "patch": "@@ -1 +1 @@ short"
+                                    }
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.owner").value("o"))
+                .andExpect(jsonPath("$.repo").value("r"))
+                .andExpect(jsonPath("$.pullNumber").value(1))
+                .andExpect(jsonPath("$.title").value("Small PR"))
+                .andExpect(jsonPath("$.totalFiles").value(1))
+                .andExpect(jsonPath("$.totalAdditions").value(3))
+                .andExpect(jsonPath("$.totalDeletions").value(1))
+                .andExpect(jsonPath("$.totalChanges").value(4))
+                .andExpect(jsonPath("$.truncated").value(false))
+                .andExpect(jsonPath("$.truncationReason").doesNotExist())
+                .andExpect(jsonPath("$.fileContexts[0].filename").value("A.java"))
+                .andExpect(jsonPath("$.fileContexts[0].patchTruncated").value(false));
+    }
+
+    @Test
+    void buildDiffContextTruncatesLongPatch() throws Exception {
+        String longPatch = "x".repeat(5000);
+        mockMvc.perform(post("/api/reviews/build-diff-context")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "owner": "o",
+                                  "repo": "r",
+                                  "pullNumber": 2,
+                                  "title": "Large PR",
+                                  "changedFiles": [
+                                    {
+                                      "filename": "Big.java",
+                                      "status": "modified",
+                                      "additions": 100,
+                                      "deletions": 50,
+                                      "changes": 150,
+                                      "patch": "%s"
+                                    }
+                                  ]
+                                }
+                                """.formatted(longPatch)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.truncated").value(true))
+                .andExpect(jsonPath("$.truncationReason").isNotEmpty())
+                .andExpect(jsonPath("$.fileContexts[0].patchTruncated").value(true));
+    }
+
+    @Test
+    void buildDiffContextReturns400ForEmptyChangedFiles() throws Exception {
+        mockMvc.perform(post("/api/reviews/build-diff-context")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "owner": "o",
+                                  "repo": "r",
+                                  "pullNumber": 1,
+                                  "title": "Empty PR",
+                                  "changedFiles": []
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+    }
+
+    @Test
+    void buildDiffContextReturns400ForMissingRequiredFields() throws Exception {
+        mockMvc.perform(post("/api/reviews/build-diff-context")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "owner": "",
+                                  "repo": "r",
+                                  "pullNumber": 0,
+                                  "title": "",
+                                  "changedFiles": []
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+    }
 }
