@@ -6,6 +6,8 @@
 
 作品面向开发者在 Pull Request 评审中的真实需求，目标是通过 AI 辅助分析提升代码评审效率与质量。核心能力为：用户输入 GitHub PR 链接后，系统获取 PR 变更内容，整理 diff 上下文，并调用 DeepSeek API 生成 PR 变更总结、风险代码识别和 Review 建议。
 
+与“功能大而全”的评审后台不同，本项目优先服务开发者提交、创建 PR、合并 PR 前的即时检查场景。历史记录、团队空间、模型模式面板等功能并非没有价值，但当前阶段更关注低安装成本、低环境依赖和可嵌入开发流程的工具体验，避免为了展示功能而引入过重的平台化设计。
+
 ### 多端工具矩阵
 
 当前 Web 页面是 Demo 入口，但不是唯一产品形态。同一套后端 Review 能力（`/api/reviews/analyze`）可服务于多种入口：
@@ -17,8 +19,11 @@
 | **浏览器插件** | Chrome/Edge 扩展 | 在 GitHub PR 页面一键分析当前 PR |
 | **CLI/脚本** | 命令行工具 | 输入 PR URL 即可获取报告，适合 CI 和自动化脚本 |
 | **CI Bot** | GitHub Actions / Webhook | PR 流程中自动生成 Review 报告或评论 |
+| **AI Coding Skill** | Codex / Claude Code Skill | 在 AI Coding 提交、创建 PR 或合并前自动触发 Review |
 
 各入口只负责收集 PR URL 和展示报告，核心分析逻辑统一复用后端 API，避免重复实现。
+
+后续扩展优先级不是把 Web 页面做成复杂平台，而是让工具更贴近真实开发链路：先支持 GitHub PR Comment 或 CLI 入口，再扩展到 Git Hook、GitHub Actions 和 AI Coding Skill。
 
 ## 核心功能规划
 
@@ -122,9 +127,22 @@ AI PR Review 场景对模型有以下核心要求：
 
 #### 为什么当前不引入数据库
 
-- 核心功能是"输入 PR 链接 → 返回 AI Review 报告"，属于无状态分析链路，不需要持久化。
-- 不引入数据库意味着评委无需安装 MySQL、Redis 或配置连接，极大降低运行和环境成本。
-- 未来如需要历史报告、团队空间、自定义规则配置等有状态功能，再引入数据库或缓存层。届时只需在 `application.yml` 增加数据源配置，不影响已有接口。
+- 不引入数据库不是为了简化实现，而是基于轻量工具定位的主动取舍。核心价值发生在开发者提交、创建 PR、合并前的即时分析场景中，系统只需要根据当前 PR 链接实时获取 diff、构建上下文并生成报告。
+- 相比做成带账号、历史记录和后台管理的 Web 平台，本项目更关注"安装后即可使用、接入成本低、可迁移到不同开发环境"的工具体验。
+- 无状态设计让评委无需安装 MySQL、Redis 或配置连接，也降低了本地复现和 Demo 录制成本。
+- 历史报告、团队空间、自定义规则配置等属于后续有状态能力。如果产品发展到团队协作或审计场景，再引入数据库和缓存层。届时可通过新增持久化模块扩展，不影响现有分析 API 的核心链路。
+
+#### 轻量化封装方向
+
+Java 并不会限制工具形态。当前 Spring Boot 服务可以继续作为核心分析引擎，同时向多个轻量入口封装：
+
+- **可执行 Jar**：通过 Spring Boot 打包为 fat jar，用户配置环境变量后执行 `java -jar ai-pr-review.jar` 即可启动。
+- **CLI 命令行**：后续可引入 picocli 等轻量库，提供 `ai-pr-review analyze <pr-url>`，适合本地脚本、服务器和 CI 环境。
+- **Docker 镜像**：通过 `docker run --env-file .env ai-pr-review` 运行，减少本机 JDK/Maven 差异。
+- **GitHub PR Comment**：分析完成后把 Review 报告发布到 PR 评论区，让结果留在开发协作现场，而不是只停留在 Web 页面。
+- **AI Coding Skill**：在 Codex、Claude Code 等 AI Coding 流程中，提交或合并前自动调用 CLI 或后端 API，让 AI 写代码后的 Review 成为工作流的一部分。
+
+因此，当前 Web Demo 只是最小可演示入口，长期目标是形成“同一套后端 Review 能力 + 多个轻量触发入口”的工具矩阵。
 
 #### 为什么使用分层模块
 
