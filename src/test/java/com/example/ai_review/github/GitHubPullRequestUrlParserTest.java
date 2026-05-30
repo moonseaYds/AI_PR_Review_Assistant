@@ -1,5 +1,6 @@
 package com.example.ai_review.github;
 
+import com.example.ai_review.common.BadRequestException;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -29,21 +30,21 @@ class GitHubPullRequestUrlParserTest {
     @Test
     void rejectsNonGithubHost() {
         assertThatThrownBy(() -> parser.parse("https://example.com/owner/repo/pull/1"))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("github.com");
     }
 
     @Test
     void rejectsNonPullRequestPath() {
         assertThatThrownBy(() -> parser.parse("https://github.com/owner/repo/issues/1"))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("标准 GitHub PR 链接");
     }
 
     @Test
     void rejectsZeroPullNumber() {
         assertThatThrownBy(() -> parser.parse("https://github.com/owner/repo/pull/0"))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("大于 0");
     }
 }

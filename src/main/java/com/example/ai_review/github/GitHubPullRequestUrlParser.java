@@ -1,5 +1,7 @@
 package com.example.ai_review.github;
 
+import com.example.ai_review.common.BadRequestException;
+import com.example.ai_review.common.ErrorCode;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
@@ -11,10 +13,12 @@ import java.util.regex.Pattern;
 public class GitHubPullRequestUrlParser {
 
     private static final Pattern PULL_REQUEST_PATH = Pattern.compile("^/([^/]+)/([^/]+)/pull/(\\d+)/?$");
+    private static final String SUGGESTION = "请输入标准 GitHub PR 链接，例如 https://github.com/owner/repo/pull/123";
 
     public GitHubPullRequestRef parse(String rawUrl) {
         if (rawUrl == null || rawUrl.isBlank()) {
-            throw new IllegalArgumentException("GitHub PR 链接不能为空");
+            throw new BadRequestException(ErrorCode.INVALID_PR_URL,
+                    "GitHub PR 链接不能为空", SUGGESTION);
         }
 
         URI uri = parseUri(rawUrl.trim());
@@ -23,7 +27,9 @@ public class GitHubPullRequestUrlParser {
 
         Matcher matcher = PULL_REQUEST_PATH.matcher(uri.getPath());
         if (!matcher.matches()) {
-            throw new IllegalArgumentException("请输入标准 GitHub PR 链接，例如 https://github.com/owner/repo/pull/123");
+            throw new BadRequestException(ErrorCode.INVALID_PR_URL,
+                    "请输入标准 GitHub PR 链接，例如 https://github.com/owner/repo/pull/123",
+                    SUGGESTION);
         }
 
         String owner = matcher.group(1);
@@ -38,21 +44,24 @@ public class GitHubPullRequestUrlParser {
         try {
             return new URI(rawUrl);
         } catch (URISyntaxException exception) {
-            throw new IllegalArgumentException("GitHub PR 链接格式不合法");
+            throw new BadRequestException(ErrorCode.INVALID_PR_URL,
+                    "GitHub PR 链接格式不合法", SUGGESTION);
         }
     }
 
     private void validateScheme(URI uri) {
         String scheme = uri.getScheme();
         if (!"https".equalsIgnoreCase(scheme) && !"http".equalsIgnoreCase(scheme)) {
-            throw new IllegalArgumentException("GitHub PR 链接必须以 http:// 或 https:// 开头");
+            throw new BadRequestException(ErrorCode.INVALID_PR_URL,
+                    "GitHub PR 链接必须以 http:// 或 https:// 开头", SUGGESTION);
         }
     }
 
     private void validateHost(URI uri) {
         String host = uri.getHost();
         if (host == null) {
-            throw new IllegalArgumentException("GitHub PR 链接缺少域名");
+            throw new BadRequestException(ErrorCode.INVALID_PR_URL,
+                    "GitHub PR 链接缺少域名", SUGGESTION);
         }
 
         String normalizedHost = host.toLowerCase();
@@ -61,7 +70,8 @@ public class GitHubPullRequestUrlParser {
         }
 
         if (!"github.com".equals(normalizedHost)) {
-            throw new IllegalArgumentException("当前仅支持 github.com 的 PR 链接");
+            throw new BadRequestException(ErrorCode.INVALID_PR_URL,
+                    "当前仅支持 github.com 的 PR 链接", SUGGESTION);
         }
     }
 
@@ -69,11 +79,13 @@ public class GitHubPullRequestUrlParser {
         try {
             int pullNumber = Integer.parseInt(rawPullNumber);
             if (pullNumber <= 0) {
-                throw new IllegalArgumentException("GitHub PR 编号必须大于 0");
+                throw new BadRequestException(ErrorCode.INVALID_PR_URL,
+                        "GitHub PR 编号必须大于 0", SUGGESTION);
             }
             return pullNumber;
         } catch (NumberFormatException exception) {
-            throw new IllegalArgumentException("GitHub PR 编号超出支持范围");
+            throw new BadRequestException(ErrorCode.INVALID_PR_URL,
+                    "GitHub PR 编号超出支持范围", SUGGESTION);
         }
     }
 }

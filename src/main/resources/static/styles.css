@@ -258,6 +258,32 @@ body {
     margin-bottom: 4px;
 }
 
+.error-state .error-code {
+    font-size: 11px;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    color: var(--color-text-muted);
+    margin-bottom: 6px;
+}
+
+.error-state .error-message {
+    margin-bottom: 4px;
+}
+
+.error-state .error-suggestion {
+    font-size: 13px;
+    margin-top: 6px;
+    padding: 8px 10px;
+    background: rgba(207, 34, 46, 0.06);
+    border-radius: var(--radius);
+    border-left: 3px solid var(--color-danger);
+}
+
+.error-state .error-retryable {
+    font-size: 12px;
+    margin-top: 8px;
+    color: var(--color-text-muted);
+}
+
 /* ===== Result Card ===== */
 .result-card {
     background: var(--color-surface);

@@ -230,7 +230,7 @@ class AiReviewControllerTest {
                                 }
                                 """))
                 .andExpect(status().isBadGateway())
-                .andExpect(jsonPath("$.code").value("UPSTREAM_ERROR"))
+                .andExpect(jsonPath("$.code").value("DEEPSEEK_UPSTREAM_ERROR"))
                 .andExpect(jsonPath("$.message", containsString("DEEPSEEK_API_KEY")));
     }
 
@@ -270,7 +270,7 @@ class AiReviewControllerTest {
                                 }
                                 """))
                 .andExpect(status().isBadGateway())
-                .andExpect(jsonPath("$.code").value("UPSTREAM_ERROR"))
+                .andExpect(jsonPath("$.code").value("DEEPSEEK_UPSTREAM_ERROR"))
                 .andExpect(jsonPath("$.message", containsString("JSON")));
     }
 }
