@@ -1,5 +1,6 @@
 package com.example.ai_review.review;
 
+import com.example.ai_review.common.ErrorCode;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
@@ -45,8 +46,9 @@ public class DeepSeekClient {
 
     public String chat(String systemPrompt, String userPrompt) {
         if (apiKey.isEmpty()) {
-            throw new DeepSeekApiException(
-                    "未配置 DeepSeek API Key，请设置环境变量 DEEPSEEK_API_KEY");
+            throw new DeepSeekApiException(ErrorCode.DEEPSEEK_API_KEY_MISSING,
+                    "未配置 DeepSeek API Key，请设置环境变量 DEEPSEEK_API_KEY",
+                    "在环境变量或 .env 文件中设置 DEEPSEEK_API_KEY 后重试", false);
         }
 
         DeepSeekChatRequest request = new DeepSeekChatRequest(
@@ -69,28 +71,35 @@ public class DeepSeekClient {
                         byte[] body = res.getBody().readAllBytes();
                         String bodyText = new String(body);
                         if (res.getStatusCode().value() == 401 || res.getStatusCode().value() == 403) {
-                            throw new DeepSeekApiException(
-                                    "DeepSeek API 认证失败，请检查 DEEPSEEK_API_KEY 是否正确");
+                            throw new DeepSeekApiException(ErrorCode.DEEPSEEK_AUTH_FAILED,
+                                    "DeepSeek API 认证失败，请检查 DEEPSEEK_API_KEY 是否正确",
+                                    "检查 key 是否有效、是否有额度、模型是否有权限", false);
                         }
-                        throw new DeepSeekApiException(
+                        throw new DeepSeekApiException(ErrorCode.DEEPSEEK_UPSTREAM_ERROR,
                                 "DeepSeek API 返回错误 (" + res.getStatusCode().value() + ")："
-                                        + (bodyText.length() > 500 ? bodyText.substring(0, 500) : bodyText));
+                                        + (bodyText.length() > 500 ? bodyText.substring(0, 500) : bodyText),
+                                "检查请求参数和模型配置", false);
                     })
                     .body(DeepSeekChatResponse.class);
         } catch (DeepSeekApiException e) {
             throw e;
         } catch (Exception e) {
-            throw new DeepSeekApiException(
-                    "调用 DeepSeek API 时发生网络错误，请检查网络连接和 DEEPSEEK_BASE_URL 配置", e);
+            throw new DeepSeekApiException(ErrorCode.DEEPSEEK_NETWORK_ERROR,
+                    "调用 DeepSeek API 时发生网络错误，请检查网络连接和 DEEPSEEK_BASE_URL 配置",
+                    "检查网络后重试", true, e);
         }
 
         if (response == null || response.choices() == null || response.choices().isEmpty()) {
-            throw new DeepSeekApiException("DeepSeek API 返回了空的响应内容");
+            throw new DeepSeekApiException(ErrorCode.DEEPSEEK_RESPONSE_INVALID,
+                    "DeepSeek API 返回了空的响应内容",
+                    "可重试；如果持续出现，尝试降低 diff 大小", true);
         }
 
         DeepSeekChatResponse.Message message = response.choices().get(0).message();
         if (message == null || message.content() == null || message.content().isBlank()) {
-            throw new DeepSeekApiException("DeepSeek API 返回了空的响应内容");
+            throw new DeepSeekApiException(ErrorCode.DEEPSEEK_RESPONSE_INVALID,
+                    "DeepSeek API 返回了空的响应内容",
+                    "可重试；如果持续出现，尝试降低 diff 大小", true);
         }
 
         return message.content();
@@ -101,24 +110,29 @@ public class DeepSeekClient {
         try {
             report = objectMapper.readValue(jsonContent, ReviewReport.class);
         } catch (JsonProcessingException e) {
-            throw new DeepSeekApiException(
-                    "DeepSeek 返回的内容不是合法的 JSON 格式，无法解析为 Review 报告", e);
+            throw new DeepSeekApiException(ErrorCode.DEEPSEEK_RESPONSE_INVALID,
+                    "DeepSeek 返回的内容不是合法的 JSON 格式，无法解析为 Review 报告",
+                    "可重试；如果持续出现，尝试降低 PR diff 大小或调整模型配置", true, e);
         }
         if (report.summary() == null || report.summary().isBlank()) {
-            throw new DeepSeekApiException(
-                    "DeepSeek 返回的 Review 报告缺少 summary 字段或为空");
+            throw new DeepSeekApiException(ErrorCode.DEEPSEEK_RESPONSE_INVALID,
+                    "DeepSeek 返回的 Review 报告缺少 summary 字段或为空",
+                    "可重试；如果持续出现，尝试降低 PR diff 大小", true);
         }
         if (report.riskLevel() == null) {
-            throw new DeepSeekApiException(
-                    "DeepSeek 返回的 Review 报告缺少 riskLevel 字段");
+            throw new DeepSeekApiException(ErrorCode.DEEPSEEK_RESPONSE_INVALID,
+                    "DeepSeek 返回的 Review 报告缺少 riskLevel 字段",
+                    "可重试；如果持续出现，尝试降低 PR diff 大小", true);
         }
         if (report.risks() == null) {
-            throw new DeepSeekApiException(
-                    "DeepSeek 返回的 Review 报告缺少 risks 字段");
+            throw new DeepSeekApiException(ErrorCode.DEEPSEEK_RESPONSE_INVALID,
+                    "DeepSeek 返回的 Review 报告缺少 risks 字段",
+                    "可重试；如果持续出现，尝试降低 PR diff 大小", true);
         }
         if (report.suggestions() == null) {
-            throw new DeepSeekApiException(
-                    "DeepSeek 返回的 Review 报告缺少 suggestions 字段");
+            throw new DeepSeekApiException(ErrorCode.DEEPSEEK_RESPONSE_INVALID,
+                    "DeepSeek 返回的 Review 报告缺少 suggestions 字段",
+                    "可重试；如果持续出现，尝试降低 PR diff 大小", true);
         }
         return report;
     }

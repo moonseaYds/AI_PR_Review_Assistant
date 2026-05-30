@@ -53,7 +53,7 @@ class PullRequestParseControllerTest {
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("BAD_REQUEST"))
+                .andExpect(jsonPath("$.code").value("INVALID_PR_URL"))
                 .andExpect(jsonPath("$.message", containsString("github.com")));
     }
 
@@ -100,7 +100,7 @@ class PullRequestParseControllerTest {
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("BAD_REQUEST"))
+                .andExpect(jsonPath("$.code").value("INVALID_PR_URL"))
                 .andExpect(jsonPath("$.message", containsString("github.com")));
     }
 

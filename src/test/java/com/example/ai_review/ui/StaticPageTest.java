@@ -125,6 +125,34 @@ class StaticPageTest {
                 "render.js should handle codeSnippet display");
         assertTrue(body.contains("exampleFix"),
                 "render.js should handle exampleFix display");
+        assertTrue(body.contains("retryable"),
+                "render.js should display retryable status");
+    }
+
+    @Test
+    void renderJsPublishErrorHasStructuredDisplay() throws Exception {
+        byte[] bytes = mockMvc.perform(get("/js/render.js"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsByteArray();
+        String body = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+
+        assertTrue(body.contains("publishError"),
+                "render.js should have publishError function");
+        assertTrue(body.contains("retryable") || body.contains("可重试"),
+                "render.js publishError should handle retryable");
+        assertTrue(body.contains("suggestion") || body.contains("建议"),
+                "render.js publishError should handle suggestion");
+    }
+
+    @Test
+    void appJsPassesFullErrToPublishError() throws Exception {
+        byte[] bytes = mockMvc.perform(get("/js/app.js"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsByteArray();
+        String body = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+
+        assertTrue(body.contains("publishError(err)"),
+                "app.js should pass full err to publishError");
     }
 
     @Test

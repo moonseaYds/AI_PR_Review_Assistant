@@ -1,5 +1,7 @@
 package com.example.ai_review.diff;
 
+import com.example.ai_review.common.BadRequestException;
+import com.example.ai_review.common.ErrorCode;
 import com.example.ai_review.github.ChangedFile;
 import org.springframework.stereotype.Service;
 
@@ -18,15 +20,17 @@ public class LocalDiffParser {
 
     public List<ChangedFile> parse(String diffText) {
         if (diffText == null || diffText.isBlank()) {
-            throw new IllegalArgumentException("diffText 不能为空");
+            throw new BadRequestException(ErrorCode.INVALID_DIFF_TEXT,
+                    "diffText 不能为空", "请粘贴完整 git diff 输出");
         }
 
         String trimmed = diffText.strip();
 
         // Require at least one diff --git header
         if (!FILE_SEPARATOR.matcher(trimmed).find()) {
-            throw new IllegalArgumentException(
-                    "无法解析 diff 内容：未找到标准的 git diff header (diff --git a/... b/...)");
+            throw new BadRequestException(ErrorCode.INVALID_DIFF_TEXT,
+                    "无法解析 diff 内容：未找到标准的 git diff header (diff --git a/... b/...)",
+                    "请粘贴 git diff 或 git diff main...HEAD 的完整输出");
         }
 
         List<ChangedFile> files = new ArrayList<>();
@@ -77,8 +81,9 @@ public class LocalDiffParser {
         }
 
         if (files.isEmpty()) {
-            throw new IllegalArgumentException(
-                    "无法解析 diff 内容：未找到有效的文件变更块");
+            throw new BadRequestException(ErrorCode.INVALID_DIFF_TEXT,
+                    "无法解析 diff 内容：未找到有效的文件变更块",
+                    "请确认粘贴的是完整 git diff 输出");
         }
 
         return files;

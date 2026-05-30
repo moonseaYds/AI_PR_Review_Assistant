@@ -17,13 +17,25 @@ const Render = (() => {
         );
     }
 
-    function error(container, message) {
-        container.innerHTML = (
-            '<div class="error-state">' +
-                '<div class="error-title">分析失败</div>' +
-                '<div>' + escapeHTML(message) + '</div>' +
-            '</div>'
-        );
+    function error(container, err) {
+        var message = typeof err === "string" ? err : (err.message || "未知错误");
+        var code = (typeof err === "object" && err.code) ? err.code : "";
+        var suggestion = (typeof err === "object" && err.suggestion) ? err.suggestion : "";
+
+        var html = '<div class="error-state">';
+        html += '<div class="error-title">分析失败</div>';
+        if (code) {
+            html += '<div class="error-code">错误码：' + escapeHTML(code) + '</div>';
+        }
+        html += '<div class="error-message">' + escapeHTML(message) + '</div>';
+        if (suggestion) {
+            html += '<div class="error-suggestion">建议：' + escapeHTML(suggestion) + '</div>';
+        }
+        if (typeof err === "object" && "retryable" in err) {
+            html += '<div class="error-retryable">可重试：' + (err.retryable ? "是" : "否") + '</div>';
+        }
+        html += '</div>';
+        container.innerHTML = html;
     }
 
     function result(container, data) {
@@ -216,16 +228,30 @@ const Render = (() => {
         }
     }
 
-    function publishError(message) {
-        const status = document.getElementById("publish-status");
-        if (status) {
-            status.innerHTML = (
-                '<div class="publish-error">' +
-                    '<div>发布失败：' + escapeHTML(message) + '</div>' +
-                '</div>'
-            );
+    function publishError(err) {
+        var message = typeof err === "string" ? err : (err.message || "未知错误");
+        var code = (typeof err === "object" && err.code) ? err.code : "";
+        var suggestion = (typeof err === "object" && err.suggestion) ? err.suggestion : "";
+
+        var html = '<div class="publish-error">';
+        html += '<div class="error-title">发布失败</div>';
+        if (code) {
+            html += '<div class="error-code">错误码：' + escapeHTML(code) + '</div>';
         }
-        const btn = document.getElementById("publish-btn");
+        html += '<div>' + escapeHTML(message) + '</div>';
+        if (suggestion) {
+            html += '<div class="error-suggestion">建议：' + escapeHTML(suggestion) + '</div>';
+        }
+        if (typeof err === "object" && "retryable" in err) {
+            html += '<div class="error-retryable">可重试：' + (err.retryable ? "是" : "否") + '</div>';
+        }
+        html += '</div>';
+
+        var status = document.getElementById("publish-status");
+        if (status) {
+            status.innerHTML = html;
+        }
+        var btn = document.getElementById("publish-btn");
         if (btn) {
             btn.disabled = false;
             btn.textContent = "发布到 PR 评论";

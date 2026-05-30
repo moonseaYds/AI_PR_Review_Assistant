@@ -1,5 +1,6 @@
 package com.example.ai_review.github;
 
+import com.example.ai_review.common.ErrorCode;
 import com.example.ai_review.common.GitHubApiException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatusCode;
@@ -51,19 +52,24 @@ public class GitHubPrFetcher {
                     byte[] body = response.getBody().readAllBytes();
                     String bodyText = new String(body);
                     if (response.getStatusCode().value() == 404) {
-                        throw new GitHubApiException(
+                        throw new GitHubApiException(ErrorCode.GITHUB_PR_NOT_FOUND,
                                 "GitHub PR 不存在：%s/%s#%d，请检查 owner、仓库名或 PR 编号是否正确"
-                                        .formatted(ref.owner(), ref.repo(), ref.pullNumber()));
+                                        .formatted(ref.owner(), ref.repo(), ref.pullNumber()),
+                                "确认 PR 链接正确；私有仓库需配置有读权限的 GITHUB_TOKEN", false);
                     }
                     if (response.getStatusCode().value() == 403 && bodyText.contains("rate limit")) {
-                        throw new GitHubApiException(
-                                "GitHub API 限流：匿名访问限制较低，请设置 GITHUB_TOKEN 环境变量提高限额");
+                        throw new GitHubApiException(ErrorCode.GITHUB_RATE_LIMITED,
+                                "GitHub API 限流：匿名访问限制较低，请设置 GITHUB_TOKEN 环境变量提高限额",
+                                "设置 GITHUB_TOKEN 后重试；或稍后重试", true);
                     }
-                    throw new GitHubApiException(
-                            "GitHub API 返回错误 (" + response.getStatusCode().value() + ")：" + bodyText);
+                    throw new GitHubApiException(ErrorCode.GITHUB_UPSTREAM_ERROR,
+                            "GitHub API 返回错误 (" + response.getStatusCode().value() + ")：" + bodyText,
+                            "检查请求参数和 token 权限", false);
                 })
                 .onStatus(HttpStatusCode::is5xxServerError, (request, response) -> {
-                    throw new GitHubApiException("GitHub 服务暂时不可用，请稍后重试");
+                    throw new GitHubApiException(ErrorCode.GITHUB_UPSTREAM_ERROR,
+                            "GitHub 服务暂时不可用，请稍后重试",
+                            "稍后重试；如果只是提交前自查，可切换到本地 Diff Review", true);
                 })
                 .body(GitHubPrResponse.class);
     }
@@ -76,11 +82,32 @@ public class GitHubPrFetcher {
                 .uri(url)
                 .retrieve()
                 .onStatus(HttpStatusCode::is4xxClientError, (request, response) -> {
-                    throw new GitHubApiException(
-                            "获取 PR 变更文件列表失败，GitHub API 返回 " + response.getStatusCode().value());
+                    byte[] body = response.getBody().readAllBytes();
+                    String bodyText = new String(body);
+                    int status = response.getStatusCode().value();
+                    if (status == 404) {
+                        throw new GitHubApiException(ErrorCode.GITHUB_PR_NOT_FOUND,
+                                "获取 PR 变更文件列表失败：仓库或 PR 不存在",
+                                "确认 PR 链接正确；私有仓库需配置有读权限的 GITHUB_TOKEN", false);
+                    }
+                    if (status == 403 && bodyText.contains("rate limit")) {
+                        throw new GitHubApiException(ErrorCode.GITHUB_RATE_LIMITED,
+                                "GitHub API 限流：无法获取变更文件列表",
+                                "设置 GITHUB_TOKEN 后重试；或稍后重试", true);
+                    }
+                    if (status == 401 || status == 403) {
+                        throw new GitHubApiException(ErrorCode.GITHUB_AUTH_FAILED,
+                                "获取 PR 变更文件列表失败：认证失败或权限不足",
+                                "检查 GITHUB_TOKEN 是否有效且有目标仓库读权限", false);
+                    }
+                    throw new GitHubApiException(ErrorCode.GITHUB_UPSTREAM_ERROR,
+                            "获取 PR 变更文件列表失败，GitHub API 返回 " + status,
+                            "检查请求参数和 token 权限", false);
                 })
                 .onStatus(HttpStatusCode::is5xxServerError, (request, response) -> {
-                    throw new GitHubApiException("GitHub 服务暂时不可用，请稍后重试");
+                    throw new GitHubApiException(ErrorCode.GITHUB_UPSTREAM_ERROR,
+                            "GitHub 服务暂时不可用，请稍后重试",
+                            "稍后重试；如果只是提交前自查，可切换到本地 Diff Review", true);
                 })
                 .body(GitHubPrFileResponse[].class);
 

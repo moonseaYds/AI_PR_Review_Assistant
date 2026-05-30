@@ -1,5 +1,6 @@
 package com.example.ai_review.diff;
 
+import com.example.ai_review.common.BadRequestException;
 import com.example.ai_review.github.ChangedFile;
 import org.junit.jupiter.api.Test;
 
@@ -109,15 +110,15 @@ class LocalDiffParserTest {
 
     @Test
     void throwsOnEmptyDiff() {
-        assertThrows(IllegalArgumentException.class, () -> parser.parse(""));
-        assertThrows(IllegalArgumentException.class, () -> parser.parse("   "));
+        assertThrows(BadRequestException.class, () -> parser.parse(""));
+        assertThrows(BadRequestException.class, () -> parser.parse("   "));
     }
 
     @Test
     void throwsOnNonStandardDiff() {
-        assertThrows(IllegalArgumentException.class, () ->
+        assertThrows(BadRequestException.class, () ->
                 parser.parse("this is not a git diff"));
-        assertThrows(IllegalArgumentException.class, () ->
+        assertThrows(BadRequestException.class, () ->
                 parser.parse("just some random text\nwithout diff header"));
     }
 }

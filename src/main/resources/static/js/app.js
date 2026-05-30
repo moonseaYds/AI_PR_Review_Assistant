@@ -91,7 +91,7 @@
             Render.publishForm(resultArea, prUrl, data);
         } catch (err) {
             setState(STATE.ERROR);
-            Render.error(resultArea, err.message);
+            Render.error(resultArea, err);
             currentState = STATE.ERROR;
             button.disabled = false;
             button.textContent = "开始分析";
@@ -112,7 +112,7 @@
             // No publish button for local diff
         } catch (err) {
             setState(STATE.ERROR);
-            Render.error(resultArea, err.message);
+            Render.error(resultArea, err);
             currentState = STATE.ERROR;
             button.disabled = false;
             button.textContent = "开始分析";
@@ -128,7 +128,7 @@
             var response = await Api.publishComment(lastPrUrl, lastResult);
             Render.publishSuccess(response.commentUrl);
         } catch (err) {
-            Render.publishError(err.message);
+            Render.publishError(err);
         }
     }
 

@@ -1,19 +1,30 @@
 /**
- * API layer — encapsulates the call to POST /api/reviews/analyze.
+ * API layer — encapsulates calls to backend endpoints.
  */
 const Api = (() => {
     const ANALYZE_URL = "/api/reviews/analyze";
     const ANALYZE_DIFF_URL = "/api/reviews/analyze-diff";
     const PUBLISH_URL = "/api/reviews/publish-comment";
 
-    /**
-     * Analyze a GitHub PR by URL.
-     * @param {string} prUrl
-     * @returns {Promise<object>} parsed JSON response body
-     * @throws {Error} with backend message when the response is not 2xx
-     */
+    async function handleResponse(response) {
+        if (!response.ok) {
+            var error = { message: "服务器返回错误 (" + response.status + ")" };
+            try {
+                var body = await response.json();
+                error.code = body.code || "";
+                error.message = body.message || error.message;
+                error.suggestion = body.suggestion || "";
+                error.retryable = body.retryable === true;
+            } catch (_) {
+                // body not JSON, use default
+            }
+            throw error;
+        }
+        return response.json();
+    }
+
     async function analyzePR(prUrl) {
-        let response;
+        var response;
         try {
             response = await fetch(ANALYZE_URL, {
                 method: "POST",
@@ -21,66 +32,14 @@ const Api = (() => {
                 body: JSON.stringify({ prUrl }),
             });
         } catch (e) {
-            throw new Error("网络请求失败，请检查网络连接和后端服务是否启动");
+            throw { message: "网络请求失败，请检查网络连接和后端服务是否启动",
+                     code: "NETWORK_ERROR", retryable: true };
         }
-
-        if (!response.ok) {
-            let message = "服务器返回错误 (" + response.status + ")";
-            try {
-                const body = await response.json();
-                if (body && body.message) {
-                    message = body.message;
-                }
-            } catch (_) {
-                // Response body is not JSON; use default message
-            }
-            throw new Error(message);
-        }
-
-        return response.json();
+        return handleResponse(response);
     }
 
-    /**
-     * Publish a comment to a GitHub PR.
-     * @param {string} prUrl
-     * @param {object} analysis - AnalyzePullRequestResponse from /analyze
-     * @returns {Promise<object>} parsed JSON with commentUrl
-     */
-    async function publishComment(prUrl, analysis) {
-        let response;
-        try {
-            response = await fetch(PUBLISH_URL, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ prUrl, analysis }),
-            });
-        } catch (e) {
-            throw new Error("网络请求失败，请检查网络连接和后端服务是否启动");
-        }
-
-        if (!response.ok) {
-            let message = "服务器返回错误 (" + response.status + ")";
-            try {
-                const respBody = await response.json();
-                if (respBody && respBody.message) {
-                    message = respBody.message;
-                }
-            } catch (_) {
-                // ignore
-            }
-            throw new Error(message);
-        }
-
-        return response.json();
-    }
-
-    /**
-     * Analyze local diff text without GitHub.
-     * @param {string} diffText
-     * @returns {Promise<object>} parsed JSON response body
-     */
     async function analyzeDiff(diffText) {
-        let response;
+        var response;
         try {
             response = await fetch(ANALYZE_DIFF_URL, {
                 method: "POST",
@@ -93,23 +52,25 @@ const Api = (() => {
                 }),
             });
         } catch (e) {
-            throw new Error("网络请求失败，请检查网络连接和后端服务是否启动");
+            throw { message: "网络请求失败，请检查网络连接和后端服务是否启动",
+                     code: "NETWORK_ERROR", retryable: true };
         }
+        return handleResponse(response);
+    }
 
-        if (!response.ok) {
-            let message = "服务器返回错误 (" + response.status + ")";
-            try {
-                const body = await response.json();
-                if (body && body.message) {
-                    message = body.message;
-                }
-            } catch (_) {
-                // ignore
-            }
-            throw new Error(message);
+    async function publishComment(prUrl, analysis) {
+        var response;
+        try {
+            response = await fetch(PUBLISH_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ prUrl, analysis }),
+            });
+        } catch (e) {
+            throw { message: "网络请求失败，请检查网络连接和后端服务是否启动",
+                     code: "NETWORK_ERROR", retryable: true };
         }
-
-        return response.json();
+        return handleResponse(response);
     }
 
     return { analyzePR, analyzeDiff, publishComment };

@@ -1,5 +1,6 @@
 package com.example.ai_review.report;
 
+import com.example.ai_review.common.ErrorCode;
 import com.example.ai_review.common.GitHubApiException;
 import com.example.ai_review.github.GitHubPrCommentPublisher;
 import com.example.ai_review.github.GitHubPullRequestRef;
@@ -111,6 +112,26 @@ class ReviewAnalysisControllerTest {
     }
 
     @Test
+    void analyzeReturnsInvalidPrUrlForNonGithubDomain() throws Exception {
+        when(analysisService.analyze(any()))
+                .thenThrow(new com.example.ai_review.common.BadRequestException(
+                        com.example.ai_review.common.ErrorCode.INVALID_PR_URL,
+                        "当前仅支持 github.com 的 PR 链接",
+                        "请输入标准 GitHub PR 链接"));
+
+        mockMvc.perform(post("/api/reviews/analyze")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "prUrl": "https://example.com/owner/repo/pull/1"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_PR_URL"))
+                .andExpect(jsonPath("$.suggestion").isNotEmpty());
+    }
+
+    @Test
     void analyzeReturns502ForGitHubError() throws Exception {
         when(analysisService.analyze(any()))
                 .thenThrow(new GitHubApiException("GitHub PR 不存在"));
@@ -123,7 +144,7 @@ class ReviewAnalysisControllerTest {
                                 }
                                 """))
                 .andExpect(status().isBadGateway())
-                .andExpect(jsonPath("$.code").value("UPSTREAM_ERROR"))
+                .andExpect(jsonPath("$.code").value("GITHUB_UPSTREAM_ERROR"))
                 .andExpect(jsonPath("$.message", containsString("GitHub")));
     }
 
@@ -141,7 +162,7 @@ class ReviewAnalysisControllerTest {
                                 }
                                 """))
                 .andExpect(status().isBadGateway())
-                .andExpect(jsonPath("$.code").value("UPSTREAM_ERROR"))
+                .andExpect(jsonPath("$.code").value("DEEPSEEK_UPSTREAM_ERROR"))
                 .andExpect(jsonPath("$.message", containsString("DEEPSEEK_API_KEY")));
     }
 
@@ -309,7 +330,7 @@ class ReviewAnalysisControllerTest {
                                 }
                                 """))
                 .andExpect(status().isBadGateway())
-                .andExpect(jsonPath("$.code").value("UPSTREAM_ERROR"))
+                .andExpect(jsonPath("$.code").value("GITHUB_UPSTREAM_ERROR"))
                 .andExpect(jsonPath("$.message").value("发布 PR 评论需要配置 GITHUB_TOKEN"));
     }
 
@@ -356,7 +377,10 @@ class ReviewAnalysisControllerTest {
     @Test
     void analyzeDiffReturns400ForInvalidDiff() throws Exception {
         when(analysisService.analyzeDiff(any()))
-                .thenThrow(new IllegalArgumentException("无法解析 diff 内容"));
+                .thenThrow(new com.example.ai_review.common.BadRequestException(
+                        com.example.ai_review.common.ErrorCode.INVALID_DIFF_TEXT,
+                        "无法解析 diff 内容",
+                        "请粘贴 git diff 完整输出"));
 
         mockMvc.perform(post("/api/reviews/analyze-diff")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -366,6 +390,59 @@ class ReviewAnalysisControllerTest {
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+                .andExpect(jsonPath("$.code").value("INVALID_DIFF_TEXT"))
+                .andExpect(jsonPath("$.suggestion").isNotEmpty());
+    }
+
+    @Test
+    void analyzeReturnsGithubPrNotFound() throws Exception {
+        when(analysisService.analyze(any()))
+                .thenThrow(new GitHubApiException(ErrorCode.GITHUB_PR_NOT_FOUND,
+                        "GitHub PR 不存在", "确认链接正确", false));
+
+        mockMvc.perform(post("/api/reviews/analyze")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "prUrl": "https://github.com/o/r/pull/999"
+                                }
+                                """))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("GITHUB_PR_NOT_FOUND"))
+                .andExpect(jsonPath("$.suggestion").value("确认链接正确"))
+                .andExpect(jsonPath("$.retryable").value(false));
+    }
+
+    @Test
+    void publishCommentReturnsGithubTokenRequired() throws Exception {
+        GitHubPullRequestRef ref = new GitHubPullRequestRef("o", "r", 1,
+                "https://github.com/o/r/pull/1");
+        when(parser.parse("https://github.com/o/r/pull/1")).thenReturn(ref);
+        when(commentFormatter.format(any())).thenReturn("md");
+        when(commentPublisher.publish(ref, "md"))
+                .thenThrow(new GitHubApiException(ErrorCode.GITHUB_TOKEN_REQUIRED,
+                        "发布 PR 评论需要配置 GITHUB_TOKEN",
+                        "设置 GITHUB_TOKEN 后重试", false));
+
+        mockMvc.perform(post("/api/reviews/publish-comment")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "prUrl": "https://github.com/o/r/pull/1",
+                                  "analysis": {
+                                    "owner": "o", "repo": "r", "pullNumber": 1,
+                                    "title": "T", "author": "a", "state": "open",
+                                    "baseBranch": "main", "headBranch": "feat",
+                                    "totalFiles": 1, "totalAdditions": 1,
+                                    "totalDeletions": 0, "totalChanges": 1,
+                                    "truncated": false, "truncationReason": null,
+                                    "review": {"summary": "OK", "riskLevel": "LOW",
+                                      "risks": [], "suggestions": [], "model": "m"}
+                                  }
+                                }
+                                """))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("GITHUB_TOKEN_REQUIRED"))
+                .andExpect(jsonPath("$.retryable").value(false));
     }
 }

@@ -44,6 +44,7 @@
 - 已完成 GitHub PR Comment 发布能力，可将 AI Review 报告发布到 GitHub PR 评论区，让分析结果留在开发协作现场。
 - 已完成本地 Diff Review 能力，支持直接粘贴 `git diff` 输出进行 AI Review，无需 GitHub PR，不依赖 GitHub token。适合提交前的本地自查场景。
 - 已完成报告证据增强，风险点和建议可附带代码片段、示例修复和行号定位，提升 Review 报告的可操作性。后续 IDEA 插件可基于这些字段跳转到对应代码位置。
+- 已完成错误诊断与兜底策略：后端返回稳定错误码、建议处理方式和是否可重试；前端展示结构化错误信息。GitHub API 不可用时引导切换到本地 Diff Review。
 
 ## 后续优化计划
 
