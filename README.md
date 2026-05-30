@@ -41,6 +41,7 @@
 - 已完成 DeepSeek AI Review 引擎，可基于 DiffReviewContext 调用 DeepSeek API 生成结构化 Review 报告，包含 PR 变更总结、风险等级（LOW/MEDIUM/HIGH）、风险列表和 Review 建议。
 - 已完成端到端 Review Report API，用户只需输入 PR 链接即可一次性完成 URL 解析、PR 获取、Diff 上下文构建和 AI Review 分析的完整流程。
 - 已完成简单 Web 演示页面，可作为 Demo 入口，支持输入 PR 链接、调用分析接口并展示结构化 Review 报告。
+- 已完成 GitHub PR Comment 发布能力，可将 AI Review 报告发布到 GitHub PR 评论区，让分析结果留在开发协作现场。
 
 ## 技术选型
 
@@ -223,7 +224,7 @@ export GITHUB_TOKEN=可选的 GitHub Token
 说明：
 
 - `DEEPSEEK_API_KEY`：调用 DeepSeek API 所需，后续由本地 `.env` 或系统环境变量提供。
-- `GITHUB_TOKEN`：可选，用于提高 GitHub API 限额或访问授权仓库。
+- `GITHUB_TOKEN`：用于提高 GitHub API 限额、访问授权仓库，以及向 PR 发布评论。如需使用发布评论功能，token 需具有目标仓库的 PR 评论权限。
 - `.env`、`application-local.yml`、`application-local.properties` 已加入 `.gitignore`，不得提交真实密钥。
 
 ## 本地运行
@@ -659,6 +660,86 @@ PR 无变更文件返回 400：
 - 响应同时包含 PR 元信息（owner、repo、title、author、state、分支）、变更统计和截断信息。
 - 不返回完整 patch 内容，避免响应过大。
 - 所有分段接口（`parse-pr-url`、`fetch-pr`、`build-diff-context`、`ai-review`）仍可单独调用。
+
+### 发布 PR 评论
+
+```http
+POST /api/reviews/publish-comment
+Content-Type: application/json
+```
+
+本接口用于将 AI Review 报告以 Markdown 格式发布到 GitHub PR 评论区。该功能体现本项目的差异化定位：Review 结果回到 PR 协作现场，而非仅停留在 Web 页面。
+
+**需要 `GITHUB_TOKEN`**：token 必须具有对目标仓库 PR 的评论权限。未配置或权限不足时会返回清晰错误。
+
+请求示例（传入 `/api/reviews/analyze` 的完整分析结果，后端自动生成 Markdown 并发布）：
+
+```json
+{
+  "prUrl": "https://github.com/owner/repo/pull/123",
+  "analysis": {
+    "owner": "owner",
+    "repo": "repo",
+    "pullNumber": 123,
+    "title": "PR title",
+    "author": "octocat",
+    "state": "open",
+    "baseBranch": "main",
+    "headBranch": "feature/example",
+    "totalFiles": 1,
+    "totalAdditions": 10,
+    "totalDeletions": 3,
+    "totalChanges": 13,
+    "truncated": false,
+    "truncationReason": null,
+    "review": {
+      "summary": "代码质量良好",
+      "riskLevel": "LOW",
+      "risks": [],
+      "suggestions": [],
+      "model": "deepseek-v4-flash"
+    }
+  }
+}
+```
+
+成功响应示例：
+
+```json
+{
+  "owner": "owner",
+  "repo": "repo",
+  "pullNumber": 123,
+  "commentUrl": "https://github.com/owner/repo/pull/123#issuecomment-1234567890"
+}
+```
+
+未配置 GITHUB_TOKEN 返回 502：
+
+```json
+{
+  "code": "UPSTREAM_ERROR",
+  "message": "发布 PR 评论需要配置 GITHUB_TOKEN，请在环境变量中设置一个有目标仓库评论权限的 GitHub Token",
+  "timestamp": "2025-01-01T00:00:00Z"
+}
+```
+
+analysis 缺失返回 400：
+
+```json
+{
+  "code": "BAD_REQUEST",
+  "message": "分析结果不能为空",
+  "timestamp": "2025-01-01T00:00:00Z"
+}
+```
+
+说明：
+
+- 评论内容为 Markdown 格式，由后端 `ReviewCommentFormatter` 根据分析结果自动生成，保证格式统一和可测试性。
+- 发布必须由用户显式点击触发，不会自动发布。
+- 评论末尾会标注“由 AI PR Review Assistant 自动生成，仅作辅助审查建议”。
+- Web Demo 页面在分析成功后显示“发布到 PR 评论”按钮。
 
 ## 原创说明
 

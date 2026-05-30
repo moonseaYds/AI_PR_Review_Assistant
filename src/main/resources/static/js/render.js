@@ -174,5 +174,58 @@ const Render = (() => {
             .replace(/'/g, "&#39;");
     }
 
-    return { clear, loading, error, result };
+    function publishForm(container, prUrl, data) {
+        let html = '<div class="result-section publish-section">';
+        html += '<div class="section-title">发布到 GitHub PR</div>';
+        html += '<button class="btn-primary" id="publish-btn">发布到 PR 评论</button>';
+        html += '<div id="publish-status"></div>';
+        html += '</div>';
+        container.insertAdjacentHTML("beforeend", html);
+    }
+
+    function publishLoading() {
+        const btn = document.getElementById("publish-btn");
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = "发布中...";
+        }
+    }
+
+    function publishSuccess(commentUrl) {
+        const status = document.getElementById("publish-status");
+        if (status) {
+            status.innerHTML = (
+                '<div class="publish-success">' +
+                    '已发布到 GitHub PR 评论：' +
+                    '<a href="' + escapeHTML(commentUrl) + '" target="_blank" rel="noopener">' +
+                        escapeHTML(commentUrl) +
+                    '</a>' +
+                '</div>'
+            );
+        }
+        const btn = document.getElementById("publish-btn");
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = "已发布";
+        }
+    }
+
+    function publishError(message) {
+        const status = document.getElementById("publish-status");
+        if (status) {
+            status.innerHTML = (
+                '<div class="publish-error">' +
+                    '<div>发布失败：' + escapeHTML(message) + '</div>' +
+                '</div>'
+            );
+        }
+        const btn = document.getElementById("publish-btn");
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = "发布到 PR 评论";
+        }
+    }
+
+    return { clear, loading, error, result, publishForm, publishLoading,
+             publishSuccess, publishError };
 })();
