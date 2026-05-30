@@ -19,6 +19,8 @@
     const urlHint = document.getElementById("url-hint");
 
     let currentState = STATE.IDLE;
+    let lastPrUrl = "";
+    let lastResult = null;
 
     function setState(state) {
         currentState = state;
@@ -44,21 +46,25 @@
     async function handleSubmit(event) {
         event.preventDefault();
 
-        const rawUrl = input.value;
+        var rawUrl = input.value;
         if (!validateInput(rawUrl)) {
             return;
         }
 
-        const prUrl = rawUrl.trim();
+        var prUrl = rawUrl.trim();
         setState(STATE.LOADING);
 
         try {
-            const data = await Api.analyzePR(prUrl);
+            var data = await Api.analyzePR(prUrl);
             setState(STATE.SUCCESS);
             Render.result(resultArea, data);
+            lastPrUrl = prUrl;
+            lastResult = data;
             currentState = STATE.SUCCESS;
             button.disabled = false;
             button.textContent = "开始分析";
+            // Show publish button after successful analysis
+            Render.publishForm(resultArea, prUrl, data);
         } catch (err) {
             setState(STATE.ERROR);
             Render.error(resultArea, err.message);
@@ -68,7 +74,27 @@
         }
     }
 
+    async function handlePublish() {
+        if (!lastPrUrl || !lastResult) {
+            return;
+        }
+        Render.publishLoading();
+        try {
+            var response = await Api.publishComment(lastPrUrl, lastResult);
+            Render.publishSuccess(response.commentUrl);
+        } catch (err) {
+            Render.publishError(err.message);
+        }
+    }
+
     form.addEventListener("submit", handleSubmit);
+
+    // Delegate publish button click
+    resultArea.addEventListener("click", function (e) {
+        if (e.target && e.target.id === "publish-btn" && !e.target.disabled) {
+            handlePublish();
+        }
+    });
 
     // Clear error hint on input
     input.addEventListener("input", function () {

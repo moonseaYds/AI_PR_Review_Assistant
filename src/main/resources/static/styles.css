@@ -451,6 +451,38 @@ body {
     word-break: break-word;
 }
 
+/* ===== Publish ===== */
+.publish-section {
+    padding: 16px 20px;
+    border-top: 1px solid var(--color-border);
+}
+
+.publish-section .btn-primary {
+    margin-top: 8px;
+}
+
+.publish-success {
+    margin-top: 10px;
+    font-size: 13px;
+    color: var(--color-success);
+    overflow-wrap: anywhere;
+}
+
+.publish-success a {
+    color: var(--color-accent);
+}
+
+.publish-error {
+    margin-top: 8px;
+    background: var(--color-bg-danger);
+    border: 1px solid rgba(207, 34, 46, 0.2);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    color: var(--color-danger);
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+
 /* ===== Responsive ===== */
 @media (max-width: 640px) {
     .container {

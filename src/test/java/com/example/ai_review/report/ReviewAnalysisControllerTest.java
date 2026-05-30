@@ -1,6 +1,10 @@
 package com.example.ai_review.report;
 
 import com.example.ai_review.common.GitHubApiException;
+import com.example.ai_review.github.GitHubPrCommentPublisher;
+import com.example.ai_review.github.GitHubPullRequestRef;
+import com.example.ai_review.github.GitHubPullRequestUrlParser;
+import com.example.ai_review.github.PublishPullRequestCommentResponse;
 import com.example.ai_review.review.DeepSeekApiException;
 import com.example.ai_review.review.ReviewReport;
 import com.example.ai_review.review.RiskLevel;
@@ -30,6 +34,15 @@ class ReviewAnalysisControllerTest {
 
     @MockitoBean
     private ReviewAnalysisService analysisService;
+
+    @MockitoBean
+    private GitHubPullRequestUrlParser parser;
+
+    @MockitoBean
+    private GitHubPrCommentPublisher commentPublisher;
+
+    @MockitoBean
+    private ReviewCommentFormatter commentFormatter;
 
     @Test
     void analyzeReturnsStructuredResponse() throws Exception {
@@ -177,5 +190,126 @@ class ReviewAnalysisControllerTest {
                 .andExpect(jsonPath("$.review.risks[0].file").value("Service.java"))
                 .andExpect(jsonPath("$.review.risks[0].title").value("空指针"))
                 .andExpect(jsonPath("$.review.suggestions[0].category").value("安全"));
+    }
+
+    // --- publish-comment tests ---
+
+    @Test
+    void publishCommentReturnsCommentUrl() throws Exception {
+        GitHubPullRequestRef ref = new GitHubPullRequestRef("o", "r", 1,
+                "https://github.com/o/r/pull/1");
+        when(parser.parse("https://github.com/o/r/pull/1")).thenReturn(ref);
+        when(commentFormatter.format(any())).thenReturn("## Review\n\nmarkdown");
+        when(commentPublisher.publish(ref, "## Review\n\nmarkdown"))
+                .thenReturn(new PublishPullRequestCommentResponse(
+                        "o", "r", 1,
+                        "https://github.com/o/r/pull/1#issuecomment-123"));
+
+        mockMvc.perform(post("/api/reviews/publish-comment")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "prUrl": "https://github.com/o/r/pull/1",
+                                  "analysis": {
+                                    "owner": "o",
+                                    "repo": "r",
+                                    "pullNumber": 1,
+                                    "title": "PR",
+                                    "author": "dev",
+                                    "state": "open",
+                                    "baseBranch": "main",
+                                    "headBranch": "feat",
+                                    "totalFiles": 1,
+                                    "totalAdditions": 1,
+                                    "totalDeletions": 0,
+                                    "totalChanges": 1,
+                                    "truncated": false,
+                                    "truncationReason": null,
+                                    "review": {
+                                      "summary": "OK",
+                                      "riskLevel": "LOW",
+                                      "risks": [],
+                                      "suggestions": [],
+                                      "model": "deepseek-v4-flash"
+                                    }
+                                  }
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.owner").value("o"))
+                .andExpect(jsonPath("$.repo").value("r"))
+                .andExpect(jsonPath("$.pullNumber").value(1))
+                .andExpect(jsonPath("$.commentUrl").value(
+                        "https://github.com/o/r/pull/1#issuecomment-123"));
+    }
+
+    @Test
+    void publishCommentReturns400ForMissingAnalysis() throws Exception {
+        mockMvc.perform(post("/api/reviews/publish-comment")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "prUrl": "https://github.com/o/r/pull/1"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+    }
+
+    @Test
+    void publishCommentReturns400ForInvalidUrl() throws Exception {
+        when(parser.parse("invalid"))
+                .thenThrow(new IllegalArgumentException("当前仅支持 github.com"));
+
+        mockMvc.perform(post("/api/reviews/publish-comment")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "prUrl": "invalid",
+                                  "analysis": {
+                                    "owner": "o", "repo": "r", "pullNumber": 1,
+                                    "title": "T", "author": "a", "state": "open",
+                                    "baseBranch": "main", "headBranch": "feat",
+                                    "totalFiles": 1, "totalAdditions": 1,
+                                    "totalDeletions": 0, "totalChanges": 1,
+                                    "truncated": false, "truncationReason": null,
+                                    "review": {"summary": "OK", "riskLevel": "LOW",
+                                      "risks": [], "suggestions": [], "model": "m"}
+                                  }
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+    }
+
+    @Test
+    void publishCommentReturns502ForMissingToken() throws Exception {
+        GitHubPullRequestRef ref = new GitHubPullRequestRef("o", "r", 1,
+                "https://github.com/o/r/pull/1");
+        when(parser.parse("https://github.com/o/r/pull/1")).thenReturn(ref);
+        when(commentFormatter.format(any())).thenReturn("## md");
+        when(commentPublisher.publish(ref, "## md"))
+                .thenThrow(new GitHubApiException("发布 PR 评论需要配置 GITHUB_TOKEN"));
+
+        mockMvc.perform(post("/api/reviews/publish-comment")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "prUrl": "https://github.com/o/r/pull/1",
+                                  "analysis": {
+                                    "owner": "o", "repo": "r", "pullNumber": 1,
+                                    "title": "T", "author": "a", "state": "open",
+                                    "baseBranch": "main", "headBranch": "feat",
+                                    "totalFiles": 1, "totalAdditions": 1,
+                                    "totalDeletions": 0, "totalChanges": 1,
+                                    "truncated": false, "truncationReason": null,
+                                    "review": {"summary": "OK", "riskLevel": "LOW",
+                                      "risks": [], "suggestions": [], "model": "m"}
+                                  }
+                                }
+                                """))
+                .andExpect(status().isBadGateway())
+                .andExpect(jsonPath("$.code").value("UPSTREAM_ERROR"))
+                .andExpect(jsonPath("$.message").value("发布 PR 评论需要配置 GITHUB_TOKEN"));
     }
 }

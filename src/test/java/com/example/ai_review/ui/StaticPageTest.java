@@ -98,4 +98,41 @@ class StaticPageTest {
         assertTrue(body.contains(".footer p") || body.contains("footer p"),
                 "styles.css should have footer p rule with max-width");
     }
+
+    @Test
+    void apiJsHasPublishComment() throws Exception {
+        byte[] bytes = mockMvc.perform(get("/js/api.js"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsByteArray();
+        String body = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+
+        assertTrue(body.contains("publishComment"),
+                "api.js should contain publishComment function");
+        assertTrue(body.contains("publish-comment"),
+                "api.js should reference publish-comment endpoint");
+    }
+
+    @Test
+    void renderJsHasPublishForm() throws Exception {
+        byte[] bytes = mockMvc.perform(get("/js/render.js"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsByteArray();
+        String body = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+
+        assertTrue(body.contains("publishForm"),
+                "render.js should contain publishForm function");
+    }
+
+    @Test
+    void appJsHasLastPrUrl() throws Exception {
+        byte[] bytes = mockMvc.perform(get("/js/app.js"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsByteArray();
+        String body = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+
+        assertTrue(body.contains("lastPrUrl"),
+                "app.js should store lastPrUrl for publish flow");
+        assertTrue(body.contains("publish-btn"),
+                "app.js should handle publish button click");
+    }
 }
