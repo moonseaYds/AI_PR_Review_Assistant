@@ -17,6 +17,7 @@
     var resultArea = document.getElementById("result-area");
     var urlHint = document.getElementById("url-hint");
     var diffHint = document.getElementById("diff-hint");
+    var analysisModeSelect = document.getElementById("analysis-mode");
 
     var currentState = STATE.IDLE;
     var currentMode = "pr-url";
@@ -64,7 +65,7 @@
                 urlHint.textContent = "请输入 GitHub PR 链接";
                 return;
             }
-            analyzePR(rawUrl.trim());
+            analyzePR(rawUrl.trim(), getAnalysisMode());
         } else {
             var textarea = document.getElementById("diff-text");
             var diffText = textarea.value;
@@ -72,15 +73,19 @@
                 if (diffHint) diffHint.textContent = "请粘贴 git diff 输出";
                 return;
             }
-            analyzeLocalDiff(diffText.trim());
+            analyzeLocalDiff(diffText.trim(), getAnalysisMode());
         }
     }
 
-    async function analyzePR(prUrl) {
+    function getAnalysisMode() {
+        return analysisModeSelect && analysisModeSelect.value ? analysisModeSelect.value : "FAST";
+    }
+
+    async function analyzePR(prUrl, analysisMode) {
         setState(STATE.LOADING);
         lastPrUrl = prUrl;
         try {
-            var data = await Api.analyzePR(prUrl);
+            var data = await Api.analyzePR(prUrl, analysisMode);
             setState(STATE.SUCCESS);
             Render.result(resultArea, data);
             lastResult = data;
@@ -98,11 +103,11 @@
         }
     }
 
-    async function analyzeLocalDiff(diffText) {
+    async function analyzeLocalDiff(diffText, analysisMode) {
         setState(STATE.LOADING);
         lastPrUrl = "";
         try {
-            var data = await Api.analyzeDiff(diffText);
+            var data = await Api.analyzeDiff(diffText, analysisMode);
             setState(STATE.SUCCESS);
             Render.result(resultArea, data);
             lastResult = data;

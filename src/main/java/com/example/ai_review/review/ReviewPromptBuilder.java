@@ -85,6 +85,8 @@ public class ReviewPromptBuilder {
         sb.append("- 新增行数：").append(context.totalAdditions()).append("\n");
         sb.append("- 删除行数：").append(context.totalDeletions()).append("\n");
         sb.append("- 总变更行数：").append(context.totalChanges()).append("\n");
+        sb.append("- Review Context 模式：").append(context.analysisMode()).append("\n");
+        sb.append("- Context 策略：").append(context.contextStrategy()).append("\n");
 
         if (context.truncated()) {
             sb.append("- ⚠️ 注意：diff 内容已被截断，截断原因：")

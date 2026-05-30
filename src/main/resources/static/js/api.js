@@ -23,13 +23,13 @@ const Api = (() => {
         return response.json();
     }
 
-    async function analyzePR(prUrl) {
+    async function analyzePR(prUrl, analysisMode) {
         var response;
         try {
             response = await fetch(ANALYZE_URL, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ prUrl }),
+                body: JSON.stringify({ prUrl, analysisMode }),
             });
         } catch (e) {
             throw { message: "网络请求失败，请检查网络连接和后端服务是否启动",
@@ -38,7 +38,7 @@ const Api = (() => {
         return handleResponse(response);
     }
 
-    async function analyzeDiff(diffText) {
+    async function analyzeDiff(diffText, analysisMode) {
         var response;
         try {
             response = await fetch(ANALYZE_DIFF_URL, {
@@ -48,6 +48,7 @@ const Api = (() => {
                     repository: "local-project",
                     baseBranch: "main",
                     headBranch: "working-tree",
+                    analysisMode,
                     diffText,
                 }),
             });

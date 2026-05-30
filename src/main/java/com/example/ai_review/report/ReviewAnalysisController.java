@@ -33,7 +33,7 @@ public class ReviewAnalysisController {
 
     @PostMapping("/analyze")
     public AnalyzePullRequestResponse analyze(@Valid @RequestBody AnalyzePullRequestRequest request) {
-        return analysisService.analyze(request.prUrl());
+        return analysisService.analyze(request.prUrl(), request.analysisMode());
     }
 
     @PostMapping("/analyze-diff")

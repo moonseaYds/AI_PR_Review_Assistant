@@ -1,6 +1,7 @@
 package com.example.ai_review.report;
 
 import com.example.ai_review.diff.AnalyzeDiffRequest;
+import com.example.ai_review.diff.AnalysisMode;
 import com.example.ai_review.diff.BuildDiffContextRequest;
 import com.example.ai_review.diff.DiffContextBuilder;
 import com.example.ai_review.diff.DiffReviewContext;
@@ -42,6 +43,11 @@ public class ReviewAnalysisService {
     }
 
     public AnalyzePullRequestResponse analyze(String prUrl) {
+        return analyze(prUrl, AnalysisMode.FAST);
+    }
+
+    public AnalyzePullRequestResponse analyze(String prUrl, AnalysisMode analysisMode) {
+        AnalysisMode mode = AnalysisMode.defaultIfNull(analysisMode);
         GitHubPullRequestRef ref = parser.parse(prUrl);
         PrFetchResult fetchResult = fetcher.fetch(ref);
 
@@ -55,7 +61,8 @@ public class ReviewAnalysisService {
                 fetchResult.repo(),
                 fetchResult.pullNumber(),
                 fetchResult.title(),
-                fetchResult.changedFiles()
+                fetchResult.changedFiles(),
+                mode
         );
 
         DiffReviewContext diffContext = diffContextBuilder.build(buildRequest);
@@ -89,6 +96,8 @@ public class ReviewAnalysisService {
                 diffContext.totalChanges(),
                 diffContext.truncated(),
                 diffContext.truncationReason(),
+                diffContext.analysisMode(),
+                diffContext.contextStrategy(),
                 report
         );
     }
@@ -102,7 +111,8 @@ public class ReviewAnalysisService {
         String headBranch = defaultIfBlank(request.headBranch(), "working-tree");
 
         BuildDiffContextRequest buildRequest = new BuildDiffContextRequest(
-                "local", repo, 0, "Local Diff Review", changedFiles);
+                "local", repo, 0, "Local Diff Review", changedFiles,
+                AnalysisMode.defaultIfNull(request.analysisMode()));
 
         DiffReviewContext diffContext = diffContextBuilder.build(buildRequest);
 
@@ -128,6 +138,8 @@ public class ReviewAnalysisService {
                 diffContext.totalChanges(),
                 diffContext.truncated(),
                 diffContext.truncationReason(),
+                diffContext.analysisMode(),
+                diffContext.contextStrategy(),
                 report
         );
     }

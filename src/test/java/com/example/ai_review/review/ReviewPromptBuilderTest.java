@@ -1,5 +1,6 @@
 package com.example.ai_review.review;
 
+import com.example.ai_review.diff.AnalysisMode;
 import com.example.ai_review.diff.DiffReviewContext;
 import com.example.ai_review.diff.FileContext;
 import org.junit.jupiter.api.Test;
@@ -85,6 +86,25 @@ class ReviewPromptBuilderTest {
         assertTrue(prompt.contains("截断"));
         assertTrue(prompt.contains("超过总长度限制"));
     }
+
+    @Test
+    void userPromptContainsReviewContextModeAndStrategy() {
+        DiffReviewContext context = new DiffReviewContext(
+                "o", "r", 1, "Deep PR", 1, 1, 0, 1,
+                false, null,
+                AnalysisMode.DEEP,
+                "DEEP 模式：使用更宽上下文预算模拟分批分析覆盖面，单文件限制 8000 字符，总限制 48000 字符",
+                List.of(new FileContext("App.java", "modified", 1, 0, 1,
+                        "+change", false))
+        );
+
+        String prompt = builder.buildUserPrompt(context);
+
+        assertTrue(prompt.contains("Review Context 模式：DEEP"));
+        assertTrue(prompt.contains("Context 策略"));
+        assertTrue(prompt.contains("48000"));
+    }
+
 
     @Test
     void userPromptContainsMultipleFiles() {
