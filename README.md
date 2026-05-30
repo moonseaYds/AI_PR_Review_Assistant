@@ -10,7 +10,7 @@
 
 ### 多端工具矩阵
 
-当前 Web 页面是 Demo 入口，但不是唯一产品形态。同一套后端 Review 能力（`/api/reviews/analyze`）可服务于多种入口：
+当前 Web 页面是 Demo 入口，但不是唯一产品形态。同一套后端 Review 能力（`/api/reviews/analyze` 与 `/api/reviews/analyze-diff`）可服务于多种入口：
 
 | 入口 | 形态 | 说明 |
 |------|------|------|
@@ -40,8 +40,24 @@
 - 已完成 Diff 上下文整理与截断能力，可将 PR 变更文件列表转换为结构化 Diff Review Context，支持单文件和总 patch 长度截断，为后续 DeepSeek AI Review 提供可控输入。
 - 已完成 DeepSeek AI Review 引擎，可基于 DiffReviewContext 调用 DeepSeek API 生成结构化 Review 报告，包含 PR 变更总结、风险等级（LOW/MEDIUM/HIGH）、风险列表和 Review 建议。
 - 已完成端到端 Review Report API，用户只需输入 PR 链接即可一次性完成 URL 解析、PR 获取、Diff 上下文构建和 AI Review 分析的完整流程。
-- 已完成简单 Web 演示页面，可作为 Demo 入口，支持输入 PR 链接、调用分析接口并展示结构化 Review 报告。
+- 已完成简单 Web 演示页面，可作为 Demo 入口，支持 GitHub PR 链接和本地 Diff 文本两种输入模式，调用分析接口并展示结构化 Review 报告。
 - 已完成 GitHub PR Comment 发布能力，可将 AI Review 报告发布到 GitHub PR 评论区，让分析结果留在开发协作现场。
+- 已完成本地 Diff Review 能力，支持直接粘贴 `git diff` 输出进行 AI Review，无需 GitHub PR，不依赖 GitHub token。适合提交前的本地自查场景。
+
+## 后续优化计划
+
+本项目后续不会优先堆叠账号、历史记录、复杂后台等平台功能，而会继续围绕“开发者提交前和 PR 流程中的轻量 Review 工具”演进。
+
+优先级规划：
+
+1. **风险定位增强**：在风险点和 Review 建议中补充代码片段、问题原因、修改建议和示例修复。未来 IDEA 插件可基于 `filePath + lineNumber + codeSnippet` 直接定位到代码。
+2. **错误诊断兜底**：为 DeepSeek API、GitHub token、GitHub API、网络连接、模型 JSON 解析失败等场景提供稳定错误码和下一步处理建议。GitHub API 不可用时，引导用户改用本地 Diff Review。
+3. **智能 Diff 截断**：当前基于单文件和总 patch 长度限制控制模型上下文，后续会按文件类型和变更风险分配上下文预算，优先保留权限、配置、异常处理、Service、Controller、依赖变更等高风险 hunk，降低关键信息缺失概率。
+4. **合并风险分析**：在报告中增加合并风险维度，例如依赖变更、配置变更、公共接口变更、测试缺失等。后续 CLI 或 CI 模式可结合 `mvn test`、GitHub Actions 状态判断合并后主分支是否存在运行风险。
+5. **模型可替换设计**：当前选择 DeepSeek 是出于国内接入便利性、性价比和比赛复现成本考虑。后续会抽象模型客户端，支持 OpenAI-compatible 模型、Claude、Gemini 等。国外模型可优先直连官方 API，网络或账号受限时可通过合规 API 网关或代理转发接入，但真实密钥仍只保存在环境变量中。
+6. **多端工具封装**：在本地 Diff Review 基础上优先扩展 CLI，例如 `git diff main...HEAD | ai-pr-review analyze-diff`；随后再考虑 AI Coding Skill、浏览器插件和 IDEA 插件。IDEA 插件会放在核心接口稳定之后实现，避免过早增加端侧复杂度。
+
+详细路线图见 `docs/DEVELOPMENT_PLAN.md`。
 
 ## 技术选型
 
@@ -660,6 +676,56 @@ PR 无变更文件返回 400：
 - 响应同时包含 PR 元信息（owner、repo、title、author、state、分支）、变更统计和截断信息。
 - 不返回完整 patch 内容，避免响应过大。
 - 所有分段接口（`parse-pr-url`、`fetch-pr`、`build-diff-context`、`ai-review`）仍可单独调用。
+
+### 本地 Diff Review
+
+```http
+POST /api/reviews/analyze-diff
+Content-Type: application/json
+```
+
+本接口支持直接提交本地 `git diff` / patch 文本进行 AI Review，无需 GitHub PR 或 GitHub token。适用于开发者提交前自查场景。
+
+请求示例：
+
+```json
+{
+  "repository": "Ai_Review",
+  "baseBranch": "main",
+  "headBranch": "working-tree",
+  "diffText": "diff --git a/src/App.java b/src/App.java\n--- a/src/App.java\n+++ b/src/App.java\n@@ -1 +1 @@\n-old\n+new"
+}
+```
+
+成功响应结构与 `/api/reviews/analyze` 一致（复用 `AnalyzePullRequestResponse`），其中 `owner` 固定为 `local`，`pullNumber` 固定为 `0`，`title` 固定为 `Local Diff Review`。
+
+空 diff 返回 400：
+
+```json
+{
+  "code": "BAD_REQUEST",
+  "message": "diffText 不能为空",
+  "timestamp": "2025-01-01T00:00:00Z"
+}
+```
+
+非法 diff 返回 400：
+
+```json
+{
+  "code": "BAD_REQUEST",
+  "message": "无法解析 diff 内容：未找到标准的 git diff header",
+  "timestamp": "2025-01-01T00:00:00Z"
+}
+```
+
+说明：
+
+- 不调用 GitHub API，不检查 GitHub token。
+- 解析标准 unified diff 格式（`diff --git a/... b/...`），支持新增、删除和修改文件识别。
+- Web Demo 页面支持切换到"本地 Diff"模式，粘贴 `git diff` 输出即可分析。
+- 本地 Diff 模式成功后不展示"发布到 PR 评论"按钮。
+- 生成 diff 命令示例：`git diff` 或 `git diff main...HEAD`。
 
 ### 发布 PR 评论
 

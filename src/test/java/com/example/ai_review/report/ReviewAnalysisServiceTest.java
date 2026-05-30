@@ -1,9 +1,11 @@
 package com.example.ai_review.report;
 
+import com.example.ai_review.diff.AnalyzeDiffRequest;
 import com.example.ai_review.diff.BuildDiffContextRequest;
 import com.example.ai_review.diff.DiffContextBuilder;
 import com.example.ai_review.diff.DiffReviewContext;
 import com.example.ai_review.diff.FileContext;
+import com.example.ai_review.diff.LocalDiffParser;
 import com.example.ai_review.github.*;
 import com.example.ai_review.review.DeepSeekClient;
 import com.example.ai_review.review.ReviewPromptBuilder;
@@ -19,6 +21,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -38,6 +41,9 @@ class ReviewAnalysisServiceTest {
 
     @Mock
     private ReviewPromptBuilder promptBuilder;
+
+    @Mock
+    private LocalDiffParser localDiffParser;
 
     @InjectMocks
     private ReviewAnalysisService service;
@@ -161,5 +167,36 @@ class ReviewAnalysisServiceTest {
         assertEquals("OK", response.review().summary());
         assertEquals(RiskLevel.MEDIUM, response.review().riskLevel());
         assertEquals(1, response.review().risks().size());
+    }
+
+    @Test
+    void analyzeDiffUsesLocalLabels() {
+        String diffText = "diff --git a/A.java b/A.java\n--- a/A.java\n+++ b/A.java\n@@ -1 +1 @@\n-old\n+new";
+        ChangedFile file = new ChangedFile("A.java", "modified", 1, 1, 2, diffText);
+        when(localDiffParser.parse(diffText)).thenReturn(List.of(file));
+
+        DiffReviewContext diffContext = new DiffReviewContext(
+                "local", "local-project", 0, "Local Diff Review", 1, 1, 1, 2, false, null,
+                List.of(new FileContext("A.java", "modified", 1, 1, 2, diffText, false)));
+        when(diffContextBuilder.build(any(BuildDiffContextRequest.class))).thenReturn(diffContext);
+
+        when(promptBuilder.buildSystemPrompt()).thenReturn("s");
+        when(promptBuilder.buildUserPrompt(any())).thenReturn("u");
+        when(deepSeekClient.chat("s", "u")).thenReturn("""
+                {"summary":"OK","riskLevel":"LOW","risks":[],"suggestions":[]}""");
+        when(deepSeekClient.parseReviewReport(any()))
+                .thenReturn(new ReviewReport("OK", RiskLevel.LOW, List.of(), List.of(), null));
+        when(deepSeekClient.getModel()).thenReturn("deepseek-v4-flash");
+
+        // Use all blank optional fields to verify defaults
+        AnalyzePullRequestResponse response = service.analyzeDiff(
+                new AnalyzeDiffRequest("", "  ", null, diffText));
+
+        assertEquals("local-project", response.repo());
+        assertEquals("main", response.baseBranch());
+        assertEquals("working-tree", response.headBranch());
+
+        // 验证 analyzeDiff 不调用 GitHub parser/fetcher
+        verifyNoInteractions(parser, fetcher);
     }
 }

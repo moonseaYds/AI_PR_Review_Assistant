@@ -14,18 +14,40 @@
         </header>
 
         <form id="review-form" class="review-form" novalidate>
-            <div class="input-group">
-                <label for="pr-url" class="input-label">GitHub PR 链接</label>
-                <input
-                    type="url"
-                    id="pr-url"
-                    class="input-field"
-                    placeholder="https://github.com/owner/repo/pull/123"
-                    autocomplete="off"
-                    required
-                >
-                <p class="input-hint" id="url-hint"></p>
+            <div class="mode-switcher">
+                <button type="button" class="mode-btn active" data-mode="pr-url">GitHub PR 链接</button>
+                <button type="button" class="mode-btn" data-mode="local-diff">本地 Diff</button>
             </div>
+
+            <div id="mode-pr-url" class="mode-panel">
+                <div class="input-group">
+                    <label for="pr-url" class="input-label">GitHub PR 链接</label>
+                    <input
+                        type="url"
+                        id="pr-url"
+                        class="input-field"
+                        placeholder="https://github.com/owner/repo/pull/123"
+                        autocomplete="off"
+                    >
+                    <p class="input-hint" id="url-hint"></p>
+                </div>
+            </div>
+
+            <div id="mode-local-diff" class="mode-panel hidden">
+                <div class="input-group">
+                    <label for="diff-text" class="input-label">
+                        本地 Diff 文本（<code>git diff</code> 输出）
+                    </label>
+                    <textarea
+                        id="diff-text"
+                        class="input-field diff-textarea"
+                        placeholder="粘贴 git diff 或 git diff main...HEAD 的输出结果..."
+                        rows="8"
+                    ></textarea>
+                    <p class="input-hint" id="diff-hint"></p>
+                </div>
+            </div>
+
             <button type="submit" id="submit-btn" class="btn-primary">
                 开始分析
             </button>
@@ -35,7 +57,7 @@
     </div>
 
     <footer class="footer">
-        <p>Web 页面为当前 Demo 入口。未来可扩展为 IDE 插件、浏览器插件、CLI/脚本、CI Bot，各入口复用同一后端 <code>/api/reviews/analyze</code>。</p>
+        <p>Web 页面为当前 Demo 入口。未来可扩展为 IDE 插件、浏览器插件、CLI/脚本、CI Bot，各入口复用同一套后端 Review 分析能力（<code>/api/reviews/analyze</code> 与 <code>/api/reviews/analyze-diff</code>）。</p>
     </footer>
 
     <script src="/js/api.js"></script>

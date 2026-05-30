@@ -312,4 +312,60 @@ class ReviewAnalysisControllerTest {
                 .andExpect(jsonPath("$.code").value("UPSTREAM_ERROR"))
                 .andExpect(jsonPath("$.message").value("发布 PR 评论需要配置 GITHUB_TOKEN"));
     }
+
+    // --- analyze-diff tests ---
+
+    @Test
+    void analyzeDiffReturnsStructuredResponse() throws Exception {
+        when(analysisService.analyzeDiff(any())).thenReturn(new AnalyzePullRequestResponse(
+                "local", "my-project", 0, "Local Diff Review", "local", "local",
+                "main", "working-tree", 1, 1, 1, 2, false, null,
+                new ReviewReport("OK", RiskLevel.LOW, List.of(), List.of(), "deepseek-v4-flash")
+        ));
+
+        mockMvc.perform(post("/api/reviews/analyze-diff")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "repository": "my-project",
+                                  "baseBranch": "main",
+                                  "headBranch": "working-tree",
+                                  "diffText": "diff --git a/A.java b/A.java\\n--- a/A.java\\n+++ b/A.java\\n@@ -1 +1 @@\\n-old\\n+new"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.owner").value("local"))
+                .andExpect(jsonPath("$.repo").value("my-project"))
+                .andExpect(jsonPath("$.pullNumber").value(0))
+                .andExpect(jsonPath("$.review.riskLevel").value("LOW"));
+    }
+
+    @Test
+    void analyzeDiffReturns400ForEmptyDiffText() throws Exception {
+        mockMvc.perform(post("/api/reviews/analyze-diff")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "diffText": ""
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+    }
+
+    @Test
+    void analyzeDiffReturns400ForInvalidDiff() throws Exception {
+        when(analysisService.analyzeDiff(any()))
+                .thenThrow(new IllegalArgumentException("无法解析 diff 内容"));
+
+        mockMvc.perform(post("/api/reviews/analyze-diff")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "diffText": "not a valid diff"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+    }
 }

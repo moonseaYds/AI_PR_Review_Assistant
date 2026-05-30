@@ -1,5 +1,6 @@
 package com.example.ai_review.report;
 
+import com.example.ai_review.diff.AnalyzeDiffRequest;
 import com.example.ai_review.github.GitHubPrCommentPublisher;
 import com.example.ai_review.github.GitHubPullRequestRef;
 import com.example.ai_review.github.GitHubPullRequestUrlParser;
@@ -33,6 +34,11 @@ public class ReviewAnalysisController {
     @PostMapping("/analyze")
     public AnalyzePullRequestResponse analyze(@Valid @RequestBody AnalyzePullRequestRequest request) {
         return analysisService.analyze(request.prUrl());
+    }
+
+    @PostMapping("/analyze-diff")
+    public AnalyzePullRequestResponse analyzeDiff(@Valid @RequestBody AnalyzeDiffRequest request) {
+        return analysisService.analyzeDiff(request);
     }
 
     @PostMapping("/publish-comment")

@@ -135,4 +135,47 @@ class StaticPageTest {
         assertTrue(body.contains("publish-btn"),
                 "app.js should handle publish button click");
     }
+
+    @Test
+    void indexHtmlHasLocalDiffTextarea() throws Exception {
+        byte[] bytes = mockMvc.perform(get("/index.html"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsByteArray();
+        String body = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+
+        assertTrue(body.contains("本地 Diff"),
+                "index.html should contain local diff mode label");
+        assertTrue(body.contains("diff-text"),
+                "index.html should contain diff-text textarea id");
+        assertTrue(body.contains("analyze-diff"),
+                "index.html footer should reference analyze-diff endpoint");
+    }
+
+    @Test
+    void apiJsHasAnalyzeDiff() throws Exception {
+        byte[] bytes = mockMvc.perform(get("/js/api.js"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsByteArray();
+        String body = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+
+        assertTrue(body.contains("analyzeDiff"),
+                "api.js should contain analyzeDiff function");
+        assertTrue(body.contains("analyze-diff"),
+                "api.js should reference analyze-diff endpoint");
+    }
+
+    @Test
+    void appJsHasLocalDiffMode() throws Exception {
+        byte[] bytes = mockMvc.perform(get("/js/app.js"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsByteArray();
+        String body = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+
+        assertTrue(body.contains("analyzeLocalDiff"),
+                "app.js should contain analyzeLocalDiff function");
+        assertTrue(body.contains("local-diff"),
+                "app.js should handle local-diff mode");
+        assertTrue(body.contains("diff-text") && body.contains("addEventListener"),
+                "app.js should listen to diff-text input events");
+    }
 }

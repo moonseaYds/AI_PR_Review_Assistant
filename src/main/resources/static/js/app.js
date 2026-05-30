@@ -5,22 +5,40 @@
 (function () {
     "use strict";
 
-    const STATE = Object.freeze({
+    var STATE = Object.freeze({
         IDLE: "idle",
         LOADING: "loading",
         SUCCESS: "success",
         ERROR: "error",
     });
 
-    const form = document.getElementById("review-form");
-    const input = document.getElementById("pr-url");
-    const button = document.getElementById("submit-btn");
-    const resultArea = document.getElementById("result-area");
-    const urlHint = document.getElementById("url-hint");
+    var form = document.getElementById("review-form");
+    var button = document.getElementById("submit-btn");
+    var resultArea = document.getElementById("result-area");
+    var urlHint = document.getElementById("url-hint");
+    var diffHint = document.getElementById("diff-hint");
 
-    let currentState = STATE.IDLE;
-    let lastPrUrl = "";
-    let lastResult = null;
+    var currentState = STATE.IDLE;
+    var currentMode = "pr-url";
+    var lastPrUrl = "";
+    var lastResult = null;
+
+    // --- mode switching ---
+    document.querySelector(".mode-switcher").addEventListener("click", function (e) {
+        if (!e.target.classList.contains("mode-btn")) return;
+        var mode = e.target.getAttribute("data-mode");
+        if (mode === currentMode) return;
+
+        currentMode = mode;
+        document.querySelectorAll(".mode-btn").forEach(function (b) {
+            b.classList.toggle("active", b.getAttribute("data-mode") === mode);
+        });
+        document.getElementById("mode-pr-url").classList.toggle("hidden", mode !== "pr-url");
+        document.getElementById("mode-local-diff").classList.toggle("hidden", mode !== "local-diff");
+        Render.clear(resultArea);
+        urlHint.textContent = "";
+        if (diffHint) diffHint.textContent = "";
+    });
 
     function setState(state) {
         currentState = state;
@@ -28,6 +46,7 @@
             button.disabled = true;
             button.textContent = "分析中...";
             Render.clear(urlHint);
+            if (diffHint) Render.clear(diffHint);
             Render.loading(resultArea);
         } else {
             button.disabled = false;
@@ -35,35 +54,40 @@
         }
     }
 
-    function validateInput(value) {
-        if (!value || value.trim() === "") {
-            urlHint.textContent = "请输入 GitHub PR 链接";
-            return false;
-        }
-        return true;
-    }
-
-    async function handleSubmit(event) {
+    function handleSubmit(event) {
         event.preventDefault();
 
-        var rawUrl = input.value;
-        if (!validateInput(rawUrl)) {
-            return;
+        if (currentMode === "pr-url") {
+            var input = document.getElementById("pr-url");
+            var rawUrl = input.value;
+            if (!rawUrl || rawUrl.trim() === "") {
+                urlHint.textContent = "请输入 GitHub PR 链接";
+                return;
+            }
+            analyzePR(rawUrl.trim());
+        } else {
+            var textarea = document.getElementById("diff-text");
+            var diffText = textarea.value;
+            if (!diffText || diffText.trim() === "") {
+                if (diffHint) diffHint.textContent = "请粘贴 git diff 输出";
+                return;
+            }
+            analyzeLocalDiff(diffText.trim());
         }
+    }
 
-        var prUrl = rawUrl.trim();
+    async function analyzePR(prUrl) {
         setState(STATE.LOADING);
-
+        lastPrUrl = prUrl;
         try {
             var data = await Api.analyzePR(prUrl);
             setState(STATE.SUCCESS);
             Render.result(resultArea, data);
-            lastPrUrl = prUrl;
             lastResult = data;
             currentState = STATE.SUCCESS;
             button.disabled = false;
             button.textContent = "开始分析";
-            // Show publish button after successful analysis
+            // Show publish button only for GitHub PR mode
             Render.publishForm(resultArea, prUrl, data);
         } catch (err) {
             setState(STATE.ERROR);
@@ -74,8 +98,29 @@
         }
     }
 
+    async function analyzeLocalDiff(diffText) {
+        setState(STATE.LOADING);
+        lastPrUrl = "";
+        try {
+            var data = await Api.analyzeDiff(diffText);
+            setState(STATE.SUCCESS);
+            Render.result(resultArea, data);
+            lastResult = data;
+            currentState = STATE.SUCCESS;
+            button.disabled = false;
+            button.textContent = "开始分析";
+            // No publish button for local diff
+        } catch (err) {
+            setState(STATE.ERROR);
+            Render.error(resultArea, err.message);
+            currentState = STATE.ERROR;
+            button.disabled = false;
+            button.textContent = "开始分析";
+        }
+    }
+
     async function handlePublish() {
-        if (!lastPrUrl || !lastResult) {
+        if (!lastPrUrl || !lastResult || currentMode !== "pr-url") {
             return;
         }
         Render.publishLoading();
@@ -89,17 +134,17 @@
 
     form.addEventListener("submit", handleSubmit);
 
-    // Delegate publish button click
     resultArea.addEventListener("click", function (e) {
         if (e.target && e.target.id === "publish-btn" && !e.target.disabled) {
             handlePublish();
         }
     });
 
-    // Clear error hint on input
-    input.addEventListener("input", function () {
-        if (urlHint.textContent) {
-            urlHint.textContent = "";
-        }
+    // Clear hints on input
+    document.getElementById("pr-url").addEventListener("input", function () {
+        if (urlHint.textContent) urlHint.textContent = "";
+    });
+    document.getElementById("diff-text").addEventListener("input", function () {
+        if (diffHint && diffHint.textContent) diffHint.textContent = "";
     });
 })();

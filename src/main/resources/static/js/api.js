@@ -3,6 +3,7 @@
  */
 const Api = (() => {
     const ANALYZE_URL = "/api/reviews/analyze";
+    const ANALYZE_DIFF_URL = "/api/reviews/analyze-diff";
     const PUBLISH_URL = "/api/reviews/publish-comment";
 
     /**
@@ -73,5 +74,43 @@ const Api = (() => {
         return response.json();
     }
 
-    return { analyzePR, publishComment };
+    /**
+     * Analyze local diff text without GitHub.
+     * @param {string} diffText
+     * @returns {Promise<object>} parsed JSON response body
+     */
+    async function analyzeDiff(diffText) {
+        let response;
+        try {
+            response = await fetch(ANALYZE_DIFF_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    repository: "local-project",
+                    baseBranch: "main",
+                    headBranch: "working-tree",
+                    diffText,
+                }),
+            });
+        } catch (e) {
+            throw new Error("网络请求失败，请检查网络连接和后端服务是否启动");
+        }
+
+        if (!response.ok) {
+            let message = "服务器返回错误 (" + response.status + ")";
+            try {
+                const body = await response.json();
+                if (body && body.message) {
+                    message = body.message;
+                }
+            } catch (_) {
+                // ignore
+            }
+            throw new Error(message);
+        }
+
+        return response.json();
+    }
+
+    return { analyzePR, analyzeDiff, publishComment };
 })();
