@@ -26,6 +26,8 @@ class DiffContextBuilderTest {
 
         assertThat(context.truncated()).isFalse();
         assertThat(context.truncationReason()).isNull();
+        assertThat(context.analysisMode()).isEqualTo(AnalysisMode.FAST);
+        assertThat(context.contextStrategy()).contains("FAST").contains("4000").contains("16000");
         assertThat(context.totalFiles()).isEqualTo(2);
         assertThat(context.totalAdditions()).isEqualTo(13);
         assertThat(context.totalDeletions()).isEqualTo(1);
@@ -91,6 +93,68 @@ class DiffContextBuilderTest {
         FileContext fc5 = context.fileContexts().get(4);
         assertThat(fc5.patchTruncated()).isTrue();
         assertThat(fc5.patchExcerpt()).isEqualTo(DiffContextBuilder.NO_PATCH_PLACEHOLDER);
+    }
+
+    @Test
+    void fastModePrioritizesHighRiskPatchWhenTotalBudgetIsLimited() {
+        String lowRiskPatch = "+".repeat(DiffContextBuilder.MAX_FILE_PATCH_EXCERPT);
+        String highRiskPatch = ("+@GetMapping(\"/admin\")\n"
+                + "+return securityService.authorize(token);\n")
+                .repeat(80);
+        BuildDiffContextRequest request = new BuildDiffContextRequest(
+                "o", "r", 8, "Risk Ordered PR",
+                List.of(
+                        new ChangedFile("docs/guide.md", "modified", 1, 0, 1, lowRiskPatch),
+                        new ChangedFile("src/test/java/FooTest.java", "modified", 1, 0, 1, lowRiskPatch),
+                        new ChangedFile("assets/logo.png", "modified", 1, 0, 1, lowRiskPatch),
+                        new ChangedFile("README.md", "modified", 1, 0, 1, lowRiskPatch),
+                        new ChangedFile("src/main/java/app/UserController.java", "modified", 20, 2, 22, highRiskPatch)
+                ),
+                AnalysisMode.FAST
+        );
+
+        DiffReviewContext context = builder.build(request);
+
+        assertThat(context.truncated()).isTrue();
+        assertThat(context.truncationReason()).contains("16000");
+        assertThat(context.fileContexts()).extracting(FileContext::filename)
+                .containsExactly(
+                        "docs/guide.md",
+                        "src/test/java/FooTest.java",
+                        "assets/logo.png",
+                        "README.md",
+                        "src/main/java/app/UserController.java"
+                );
+        assertThat(context.fileContexts().get(3).patchExcerpt())
+                .isEqualTo(DiffContextBuilder.NO_PATCH_PLACEHOLDER);
+        assertThat(context.fileContexts().get(4).patchExcerpt())
+                .contains("securityService.authorize");
+        assertThat(context.fileContexts().get(4).patchTruncated()).isTrue();
+    }
+
+    @Test
+    void deepModeUsesWiderContextBudgetThanFastMode() {
+        List<ChangedFile> files = List.of(
+                new ChangedFile("File1.java", "modified", 10, 0, 10, "a".repeat(5000)),
+                new ChangedFile("File2.java", "modified", 10, 0, 10, "b".repeat(5000)),
+                new ChangedFile("File3.java", "modified", 10, 0, 10, "c".repeat(5000)),
+                new ChangedFile("File4.java", "modified", 10, 0, 10, "d".repeat(5000)),
+                new ChangedFile("File5.java", "modified", 10, 0, 10, "e".repeat(5000))
+        );
+
+        DiffReviewContext fastContext = builder.build(new BuildDiffContextRequest(
+                "o", "r", 9, "Budget PR", files, AnalysisMode.FAST));
+        DiffReviewContext deepContext = builder.build(new BuildDiffContextRequest(
+                "o", "r", 9, "Budget PR", files, AnalysisMode.DEEP));
+
+        assertThat(fastContext.truncated()).isTrue();
+        assertThat(fastContext.fileContexts().get(0).patchExcerpt())
+                .hasSize(DiffContextBuilder.MAX_FILE_PATCH_EXCERPT);
+        assertThat(deepContext.truncated()).isFalse();
+        assertThat(deepContext.analysisMode()).isEqualTo(AnalysisMode.DEEP);
+        assertThat(deepContext.contextStrategy()).contains("DEEP").contains("8000").contains("48000");
+        assertThat(deepContext.fileContexts())
+                .allSatisfy(fileContext -> assertThat(fileContext.patchExcerpt()).hasSize(5000));
     }
 
     @Test

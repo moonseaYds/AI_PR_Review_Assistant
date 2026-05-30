@@ -57,7 +57,11 @@ const Render = (() => {
                     metaItem("状态", data.state) +
                     metaItem("源分支", data.headBranch) +
                     metaItem("目标分支", data.baseBranch) +
+                    metaItem("Context 模式", data.analysisMode || "FAST") +
                 '</div>' +
+                (data.contextStrategy ? (
+                    '<div class="context-strategy">' + escapeHTML(data.contextStrategy) + '</div>'
+                ) : "") +
             '</div>'
         );
 

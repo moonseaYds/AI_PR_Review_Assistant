@@ -2,6 +2,7 @@ package com.example.ai_review.report;
 
 import com.example.ai_review.common.ErrorCode;
 import com.example.ai_review.common.GitHubApiException;
+import com.example.ai_review.diff.AnalysisMode;
 import com.example.ai_review.github.GitHubPrCommentPublisher;
 import com.example.ai_review.github.GitHubPullRequestRef;
 import com.example.ai_review.github.GitHubPullRequestUrlParser;
@@ -21,6 +22,8 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -47,7 +50,7 @@ class ReviewAnalysisControllerTest {
 
     @Test
     void analyzeReturnsStructuredResponse() throws Exception {
-        when(analysisService.analyze(any())).thenReturn(new AnalyzePullRequestResponse(
+        when(analysisService.analyze(any(), any())).thenReturn(new AnalyzePullRequestResponse(
                 "owner", "repo", 1, "Fix bug", "octocat", "open",
                 "main", "feature/fix", 1, 5, 2, 7, false, null,
                 new ReviewReport("代码质量良好", RiskLevel.LOW,
@@ -76,14 +79,44 @@ class ReviewAnalysisControllerTest {
                 .andExpect(jsonPath("$.totalChanges").value(7))
                 .andExpect(jsonPath("$.truncated").value(false))
                 .andExpect(jsonPath("$.truncationReason").doesNotExist())
+                .andExpect(jsonPath("$.analysisMode").value("FAST"))
+                .andExpect(jsonPath("$.contextStrategy", containsString("FAST")))
                 .andExpect(jsonPath("$.review.summary").value("代码质量良好"))
                 .andExpect(jsonPath("$.review.riskLevel").value("LOW"))
                 .andExpect(jsonPath("$.review.risks").isEmpty());
     }
 
     @Test
+    void analyzeAcceptsDeepAnalysisMode() throws Exception {
+        when(analysisService.analyze(any(), eq(AnalysisMode.DEEP))).thenReturn(new AnalyzePullRequestResponse(
+                "owner", "repo", 1, "Deep review", "octocat", "open",
+                "main", "feature/deep", 1, 20, 3, 23, false, null,
+                AnalysisMode.DEEP, "DEEP 模式：使用更宽上下文预算模拟分批分析覆盖面，单文件限制 8000 字符，总限制 48000 字符",
+                new ReviewReport("深度分析完成", RiskLevel.LOW,
+                        List.of(), List.of(), "deepseek-v4-flash")
+        ));
+
+        mockMvc.perform(post("/api/reviews/analyze")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "prUrl": "https://github.com/owner/repo/pull/1",
+                                  "analysisMode": "DEEP"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.analysisMode").value("DEEP"))
+                .andExpect(jsonPath("$.contextStrategy", containsString("8000")))
+                .andExpect(jsonPath("$.contextStrategy", containsString("48000")))
+                .andExpect(jsonPath("$.review.summary").value("深度分析完成"));
+
+        verify(analysisService).analyze(any(), eq(AnalysisMode.DEEP));
+    }
+
+
+    @Test
     void analyzeReturns400ForIllegalArgument() throws Exception {
-        when(analysisService.analyze(any()))
+        when(analysisService.analyze(any(), any()))
                 .thenThrow(new IllegalArgumentException("当前仅支持 github.com 的 PR 链接"));
 
         mockMvc.perform(post("/api/reviews/analyze")
@@ -113,7 +146,7 @@ class ReviewAnalysisControllerTest {
 
     @Test
     void analyzeReturnsInvalidPrUrlForNonGithubDomain() throws Exception {
-        when(analysisService.analyze(any()))
+        when(analysisService.analyze(any(), any()))
                 .thenThrow(new com.example.ai_review.common.BadRequestException(
                         com.example.ai_review.common.ErrorCode.INVALID_PR_URL,
                         "当前仅支持 github.com 的 PR 链接",
@@ -133,7 +166,7 @@ class ReviewAnalysisControllerTest {
 
     @Test
     void analyzeReturns502ForGitHubError() throws Exception {
-        when(analysisService.analyze(any()))
+        when(analysisService.analyze(any(), any()))
                 .thenThrow(new GitHubApiException("GitHub PR 不存在"));
 
         mockMvc.perform(post("/api/reviews/analyze")
@@ -150,7 +183,7 @@ class ReviewAnalysisControllerTest {
 
     @Test
     void analyzeReturns502ForDeepSeekError() throws Exception {
-        when(analysisService.analyze(any()))
+        when(analysisService.analyze(any(), any()))
                 .thenThrow(new DeepSeekApiException(
                         "未配置 DeepSeek API Key，请设置环境变量 DEEPSEEK_API_KEY"));
 
@@ -168,7 +201,7 @@ class ReviewAnalysisControllerTest {
 
     @Test
     void analyzeReturns400ForEmptyChangedFiles() throws Exception {
-        when(analysisService.analyze(any()))
+        when(analysisService.analyze(any(), any()))
                 .thenThrow(new IllegalArgumentException("该 PR 没有变更文件"));
 
         mockMvc.perform(post("/api/reviews/analyze")
@@ -185,7 +218,7 @@ class ReviewAnalysisControllerTest {
 
     @Test
     void analyzeReturnsFullReportWithRisks() throws Exception {
-        when(analysisService.analyze(any())).thenReturn(new AnalyzePullRequestResponse(
+        when(analysisService.analyze(any(), any())).thenReturn(new AnalyzePullRequestResponse(
                 "o", "r", 2, "Risky PR", "dev", "open",
                 "main", "feat/risky", 2, 20, 5, 25, true, "超过总长度限制",
                 new ReviewReport("存在高风险", RiskLevel.HIGH,
@@ -396,7 +429,7 @@ class ReviewAnalysisControllerTest {
 
     @Test
     void analyzeReturnsGithubPrNotFound() throws Exception {
-        when(analysisService.analyze(any()))
+        when(analysisService.analyze(any(), any()))
                 .thenThrow(new GitHubApiException(ErrorCode.GITHUB_PR_NOT_FOUND,
                         "GitHub PR 不存在", "确认链接正确", false));
 

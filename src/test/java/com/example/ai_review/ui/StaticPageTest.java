@@ -184,6 +184,23 @@ class StaticPageTest {
     }
 
     @Test
+    void indexHtmlHasReviewContextModeSelector() throws Exception {
+        byte[] bytes = mockMvc.perform(get("/index.html"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsByteArray();
+        String body = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+
+        assertTrue(body.contains("analysis-mode"),
+                "index.html should contain analysis-mode selector");
+        assertTrue(body.contains("FAST"),
+                "index.html should expose FAST mode");
+        assertTrue(body.contains("DEEP"),
+                "index.html should expose DEEP mode");
+        assertTrue(body.contains("Review Context"),
+                "index.html should explain Review Context strategy");
+    }
+
+    @Test
     void apiJsHasAnalyzeDiff() throws Exception {
         byte[] bytes = mockMvc.perform(get("/js/api.js"))
                 .andExpect(status().isOk())
@@ -194,6 +211,8 @@ class StaticPageTest {
                 "api.js should contain analyzeDiff function");
         assertTrue(body.contains("analyze-diff"),
                 "api.js should reference analyze-diff endpoint");
+        assertTrue(body.contains("analysisMode"),
+                "api.js should send analysisMode in request body");
     }
 
     @Test
@@ -209,5 +228,24 @@ class StaticPageTest {
                 "app.js should handle local-diff mode");
         assertTrue(body.contains("diff-text") && body.contains("addEventListener"),
                 "app.js should listen to diff-text input events");
+        assertTrue(body.contains("getAnalysisMode"),
+                "app.js should read selected Review Context mode");
+        assertTrue(body.contains("analysis-mode"),
+                "app.js should reference analysis-mode selector");
+    }
+
+    @Test
+    void renderJsDisplaysContextModeAndStrategy() throws Exception {
+        byte[] bytes = mockMvc.perform(get("/js/render.js"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsByteArray();
+        String body = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+
+        assertTrue(body.contains("Context 模式"),
+                "render.js should display context mode");
+        assertTrue(body.contains("contextStrategy"),
+                "render.js should display context strategy");
+        assertTrue(body.contains("Diff 已截断"),
+                "render.js should still display truncation status");
     }
 }

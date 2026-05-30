@@ -48,6 +48,15 @@
                 </div>
             </div>
 
+            <div class="input-group context-mode-group">
+                <label for="analysis-mode" class="input-label">Review Context 策略</label>
+                <select id="analysis-mode" class="input-field select-field">
+                    <option value="FAST" selected>FAST 快速模式：优先关键上下文，响应更快</option>
+                    <option value="DEEP">DEEP 深度模式：更宽上下文预算，覆盖更完整</option>
+                </select>
+                <p class="mode-tip">FAST 更省 token、更适合日常自查；DEEP 适合大 PR 或关键模块，响应更慢、消耗更高。</p>
+            </div>
+
             <button type="submit" id="submit-btn" class="btn-primary">
                 开始分析
             </button>

@@ -26,6 +26,15 @@ public record BuildDiffContextRequest(
         String title,
 
         @NotEmpty(message = "不能为空")
-        List<@Valid ChangedFile> changedFiles
+        List<@Valid ChangedFile> changedFiles,
+
+        AnalysisMode analysisMode
 ) {
+    public BuildDiffContextRequest(String owner,
+                                   String repo,
+                                   int pullNumber,
+                                   String title,
+                                   List<ChangedFile> changedFiles) {
+        this(owner, repo, pullNumber, title, changedFiles, AnalysisMode.FAST);
+    }
 }
