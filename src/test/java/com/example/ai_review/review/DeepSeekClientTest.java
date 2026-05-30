@@ -58,10 +58,62 @@ class DeepSeekClientTest {
         assertEquals("命名不规范", report.risks().get(0).title());
         assertEquals("变量名 x 不清晰", report.risks().get(0).reason());
         assertEquals("改为 userName", report.risks().get(0).suggestion());
+        // 旧格式不含新增字段，应为 null
+        assertNull(report.risks().get(0).lineNumber());
+        assertNull(report.risks().get(0).codeSnippet());
+        assertNull(report.risks().get(0).exampleFix());
         assertEquals(1, report.suggestions().size());
         assertEquals("App.java", report.suggestions().get(0).file());
         assertEquals("可维护性", report.suggestions().get(0).category());
         assertEquals("建议添加单元测试", report.suggestions().get(0).content());
+    }
+
+    @Test
+    void parsesNewFormatWithEvidence() {
+        DeepSeekClient client = createClient("unit-test-key");
+        String json = """
+                {
+                  "summary": "存在空指针风险",
+                  "riskLevel": "HIGH",
+                  "risks": [
+                    {
+                      "file": "Service.java",
+                      "level": "HIGH",
+                      "title": "空指针",
+                      "reason": "未检查 null",
+                      "suggestion": "加 if 判断",
+                      "lineNumber": 42,
+                      "codeSnippet": "result.process();",
+                      "exampleFix": "if (result != null) { result.process(); }"
+                    }
+                  ],
+                  "suggestions": [
+                    {
+                      "file": "Service.java",
+                      "category": "性能",
+                      "content": "使用 StringBuilder",
+                      "lineNumber": 15,
+                      "codeSnippet": "String s = \\"\\";",
+                      "exampleFix": "StringBuilder sb = new StringBuilder();"
+                    }
+                  ]
+                }
+                """;
+
+        ReviewReport report = client.parseReviewReport(json);
+
+        assertEquals("存在空指针风险", report.summary());
+        assertEquals(RiskLevel.HIGH, report.riskLevel());
+        assertEquals(1, report.risks().size());
+        RiskItem risk = report.risks().get(0);
+        assertEquals(42, risk.lineNumber());
+        assertEquals("result.process();", risk.codeSnippet());
+        assertEquals("if (result != null) { result.process(); }", risk.exampleFix());
+        assertEquals(1, report.suggestions().size());
+        SuggestionItem sug = report.suggestions().get(0);
+        assertEquals(15, sug.lineNumber());
+        assertEquals("String s = \"\";", sug.codeSnippet());
+        assertEquals("StringBuilder sb = new StringBuilder();", sug.exampleFix());
     }
 
     @Test

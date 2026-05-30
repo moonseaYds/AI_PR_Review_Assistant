@@ -5,6 +5,9 @@ public record RiskItem(
         String level,
         String title,
         String reason,
-        String suggestion
+        String suggestion,
+        Integer lineNumber,
+        String codeSnippet,
+        String exampleFix
 ) {
 }

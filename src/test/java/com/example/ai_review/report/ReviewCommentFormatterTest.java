@@ -21,8 +21,10 @@ class ReviewCommentFormatterTest {
                 "main", "feature/fix", 3, 10, 2, 12, false, null,
                 new ReviewReport("代码质量良好", RiskLevel.LOW,
                         List.of(new RiskItem("App.java", "LOW", "命名建议",
-                                "变量不清晰", "改为 userName")),
-                        List.of(new SuggestionItem("App.java", "可维护性", "加测试")),
+                                "变量不清晰", "改为 userName",
+                                12, "String x = getValue();", "String userName = getValue();")),
+                        List.of(new SuggestionItem("App.java", "可维护性", "加测试",
+                                20, "// TODO refactor", "// 已重构")),
                         "deepseek-v4-flash")
         );
 
@@ -40,6 +42,13 @@ class ReviewCommentFormatterTest {
         assertTrue(md.contains("App.java"));
         assertTrue(md.contains("加测试"));
         assertTrue(md.contains("不替代人工 Code Review"));
+        // 代码证据字段
+        assertTrue(md.contains("第 12 行附近"));
+        assertTrue(md.contains("String x = getValue();"));
+        assertTrue(md.contains("String userName = getValue();"));
+        assertTrue(md.contains("第 20 行附近"));
+        assertTrue(md.contains("// TODO refactor"));
+        assertTrue(md.contains("// 已重构"));
     }
 
     @Test
@@ -101,5 +110,74 @@ class ReviewCommentFormatterTest {
         assertFalse(md.contains("sk-"));
         assertFalse(md.contains("ghp_"));
         assertFalse(md.contains("Bearer"));
+    }
+
+    @Test
+    void usesLongerFenceWhenSnippetContainsBackticks() {
+        AnalyzePullRequestResponse response = new AnalyzePullRequestResponse(
+                "o", "r", 1, "PR", "a", "open", "main", "feat",
+                1, 1, 0, 1, false, null,
+                new ReviewReport("OK", RiskLevel.LOW,
+                        List.of(new RiskItem("App.java", "LOW", "t", "r", "s",
+                                1, "code with ``` inside", "fix with ``` too")),
+                        List.of(), "m")
+        );
+
+        String md = formatter.format(response);
+
+        // Should use longer fence (4 or more backticks), not ``` which would break
+        assertTrue(md.contains("````"));
+        // The content should be intact
+        assertTrue(md.contains("code with ``` inside"));
+    }
+
+    @Test
+    void infersYamlLanguage() {
+        AnalyzePullRequestResponse response = new AnalyzePullRequestResponse(
+                "o", "r", 1, "PR", "a", "open", "main", "feat",
+                1, 1, 0, 1, false, null,
+                new ReviewReport("OK", RiskLevel.LOW,
+                        List.of(new RiskItem("config.yml", "LOW", "t", "r", "s",
+                                1, "key: value", null)),
+                        List.of(), "m")
+        );
+
+        String md = formatter.format(response);
+
+        assertTrue(md.contains("```yaml"));
+    }
+
+    @Test
+    void infersJavascriptLanguage() {
+        AnalyzePullRequestResponse response = new AnalyzePullRequestResponse(
+                "o", "r", 1, "PR", "a", "open", "main", "feat",
+                1, 1, 0, 1, false, null,
+                new ReviewReport("OK", RiskLevel.LOW,
+                        List.of(new RiskItem("web.js", "LOW", "t", "r", "s",
+                                1, "const x = 1;", null)),
+                        List.of(), "m")
+        );
+
+        String md = formatter.format(response);
+
+        assertTrue(md.contains("```javascript"));
+    }
+
+    @Test
+    void doesNotOutputBlankSnippet() {
+        AnalyzePullRequestResponse response = new AnalyzePullRequestResponse(
+                "o", "r", 1, "PR", "a", "open", "main", "feat",
+                1, 1, 0, 1, false, null,
+                new ReviewReport("OK", RiskLevel.LOW,
+                        List.of(new RiskItem("App.java", "LOW", "t", "r", "s",
+                                1, "", "   ")),
+                        List.of(), "m")
+        );
+
+        String md = formatter.format(response);
+
+        // No code blocks should be output for empty/blank snippets
+        assertFalse(md.contains("代码片段"));
+        assertFalse(md.contains("示例修复"));
     }
 }

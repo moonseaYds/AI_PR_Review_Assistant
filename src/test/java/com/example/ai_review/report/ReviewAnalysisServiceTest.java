@@ -155,7 +155,7 @@ class ReviewAnalysisServiceTest {
         ReviewReport parsedWithoutModel = new ReviewReport(
                 "OK", RiskLevel.MEDIUM,
                 List.of(new com.example.ai_review.review.RiskItem(
-                        "A.java", "MEDIUM", "risk", "r", "s")),
+                        "A.java", "MEDIUM", "risk", "r", "s", null, null, null)),
                 List.of(), null);
         when(deepSeekClient.parseReviewReport(rawJson)).thenReturn(parsedWithoutModel);
         when(deepSeekClient.getModel()).thenReturn("deepseek-v4-flash");

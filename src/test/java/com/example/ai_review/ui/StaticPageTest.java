@@ -121,6 +121,10 @@ class StaticPageTest {
 
         assertTrue(body.contains("publishForm"),
                 "render.js should contain publishForm function");
+        assertTrue(body.contains("codeSnippet"),
+                "render.js should handle codeSnippet display");
+        assertTrue(body.contains("exampleFix"),
+                "render.js should handle exampleFix display");
     }
 
     @Test

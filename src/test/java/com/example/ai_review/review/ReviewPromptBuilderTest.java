@@ -27,6 +27,13 @@ class ReviewPromptBuilderTest {
         assertTrue(prompt.contains("HIGH"));
         assertTrue(prompt.contains("MEDIUM"));
         assertTrue(prompt.contains("LOW"));
+        // 新证据字段
+        assertTrue(prompt.contains("codeSnippet"));
+        assertTrue(prompt.contains("exampleFix"));
+        assertTrue(prompt.contains("lineNumber"));
+        // 防幻觉约束
+        assertTrue(prompt.contains("不要编造"));
+        assertTrue(prompt.contains("只能引用 diff"));
     }
 
     @Test
