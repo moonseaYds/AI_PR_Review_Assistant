@@ -170,9 +170,9 @@ class ReviewAnalysisControllerTest {
                 new ReviewReport("存在高风险", RiskLevel.HIGH,
                         List.of(new com.example.ai_review.review.RiskItem(
                                 "Service.java", "HIGH", "空指针",
-                                "未检查 null", "加 if 判断")),
+                                "未检查 null", "加 if 判断", null, null, null)),
                         List.of(new com.example.ai_review.review.SuggestionItem(
-                                "Service.java", "安全", "建议加权限校验")),
+                                "Service.java", "安全", "建议加权限校验", null, null, null)),
                         "deepseek-v4-flash")
         ));
 

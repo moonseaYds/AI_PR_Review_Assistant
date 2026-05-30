@@ -33,8 +33,8 @@ class AiReviewControllerTest {
         when(deepSeekClient.parseReviewReport(any())).thenReturn(new ReviewReport(
                 "本次 PR 修复了登录 Bug，代码质量良好",
                 RiskLevel.LOW,
-                List.of(new RiskItem("App.java", "LOW", "命名建议", "变量 x 含义不明确", "改为 userLoginCount")),
-                List.of(new SuggestionItem("App.java", "可维护性", "建议添加单元测试")),
+                List.of(new RiskItem("App.java", "LOW", "命名建议", "变量 x 含义不明确", "改为 userLoginCount", null, null, null)),
+                List.of(new SuggestionItem("App.java", "可维护性", "建议添加单元测试", null, null, null)),
                 "deepseek-v4-flash"
         ));
         when(deepSeekClient.getModel()).thenReturn("deepseek-v4-flash");
@@ -132,7 +132,7 @@ class AiReviewControllerTest {
                 "本次 PR 存在严重空指针风险",
                 RiskLevel.HIGH,
                 List.of(new RiskItem("Service.java", "HIGH", "空指针风险",
-                        "第15行未对返回值做 null 检查", "添加 if (result != null) 判断")),
+                        "第15行未对返回值做 null 检查", "添加 if (result != null) 判断", null, null, null)),
                 List.of(),
                 "deepseek-v4-flash"
         ));

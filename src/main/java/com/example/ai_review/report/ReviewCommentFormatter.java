@@ -44,11 +44,19 @@ public class ReviewCommentFormatter {
                 for (RiskItem risk : review.risks()) {
                     md.append(i).append(". **").append(escape(risk.level()))
                             .append(" - ").append(escape(risk.title())).append("**\n");
-                    md.append("   - 文件：").append(escape(risk.file())).append("\n");
+                    String fileLoc = escape(risk.file());
+                    if (risk.lineNumber() != null) {
+                        fileLoc += "（第 " + risk.lineNumber() + " 行附近）";
+                    }
+                    md.append("   - 文件：").append(fileLoc).append("\n");
                     md.append("   - 原因：").append(escape(risk.reason())).append("\n");
                     if (risk.suggestion() != null && !risk.suggestion().isBlank()) {
                         md.append("   - 建议：").append(escape(risk.suggestion())).append("\n");
                     }
+                    appendCodeBlock(md, "   - 代码片段", risk.file(),
+                            risk.codeSnippet());
+                    appendCodeBlock(md, "   - 示例修复", risk.file(),
+                            risk.exampleFix());
                     md.append("\n");
                     i++;
                 }
@@ -57,9 +65,17 @@ public class ReviewCommentFormatter {
             if (review.suggestions() != null && !review.suggestions().isEmpty()) {
                 md.append("### Review 建议\n\n");
                 for (SuggestionItem s : review.suggestions()) {
+                    String fileLoc = escape(s.file());
+                    if (s.lineNumber() != null) {
+                        fileLoc += "（第 " + s.lineNumber() + " 行附近）";
+                    }
                     md.append("- [").append(escape(s.category())).append("] ")
-                            .append(escape(s.file())).append("：")
+                            .append(fileLoc).append("：")
                             .append(escape(s.content())).append("\n");
+                    appendCodeBlock(md, "  代码片段", s.file(),
+                            s.codeSnippet());
+                    appendCodeBlock(md, "  示例改进", s.file(),
+                            s.exampleFix());
                 }
                 md.append("\n");
             }
@@ -68,6 +84,49 @@ public class ReviewCommentFormatter {
         md.append("> 本评论由 AI PR Review Assistant 自动生成，仅作为辅助审查建议，不替代人工 Code Review。\n");
 
         return md.toString();
+    }
+
+    private void appendCodeBlock(StringBuilder md, String label, String file, String content) {
+        if (content == null || content.isBlank()) return;
+
+        String lang = inferLanguage(file);
+        String fence = selectFence(content);
+
+        md.append(label).append("：\n");
+        if (!lang.isEmpty()) {
+            md.append(fence).append(lang).append("\n");
+        } else {
+            md.append(fence).append("\n");
+        }
+        md.append(content).append("\n");
+        md.append(fence).append("\n");
+    }
+
+    String selectFence(String content) {
+        StringBuilder fence = new StringBuilder("```");
+        while (content.contains(fence.toString())) {
+            fence.append("`");
+        }
+        return fence.toString();
+    }
+
+    String inferLanguage(String file) {
+        if (file == null) return "";
+        String lower = file.toLowerCase();
+        if (lower.endsWith(".java")) return "java";
+        if (lower.endsWith(".js")) return "javascript";
+        if (lower.endsWith(".ts") || lower.endsWith(".tsx")) return "typescript";
+        if (lower.endsWith(".yml") || lower.endsWith(".yaml")) return "yaml";
+        if (lower.endsWith(".json")) return "json";
+        if (lower.endsWith(".md")) return "markdown";
+        if (lower.endsWith(".xml")) return "xml";
+        if (lower.endsWith(".properties")) return "properties";
+        if (lower.endsWith(".py")) return "python";
+        if (lower.endsWith(".sql")) return "sql";
+        if (lower.endsWith(".sh")) return "bash";
+        if (lower.endsWith(".html")) return "html";
+        if (lower.endsWith(".css")) return "css";
+        return "";
     }
 
     private String escape(String s) {

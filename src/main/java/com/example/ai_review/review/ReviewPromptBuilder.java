@@ -36,17 +36,29 @@ public class ReviewPromptBuilder {
                       "level": "LOW|MEDIUM|HIGH",
                       "title": "风险标题（简短）",
                       "reason": "风险原因（具体，引用代码位置）",
-                      "suggestion": "修复建议（可执行的代码级建议）"
+                      "suggestion": "修复建议（可执行的代码级建议）",
+                      "lineNumber": 42,
+                      "codeSnippet": "来自 diff 的相关代码片段",
+                      "exampleFix": "示例修复代码或伪代码"
                     }
                   ],
                   "suggestions": [
                     {
                       "file": "文件路径",
                       "category": "类别（性能/可维护性/安全/其他）",
-                      "content": "建议内容"
+                      "content": "建议内容",
+                      "lineNumber": 42,
+                      "codeSnippet": "来自 diff 的相关代码片段",
+                      "exampleFix": "示例改进方式"
                     }
                   ]
                 }
+
+                ## 新增字段说明
+                - lineNumber：问题所在的近似行号（整数），无法确定时设为 null。
+                - codeSnippet：只能引用 diff 中出现过的代码片段，如果无法确定，返回空字符串，不要编造。
+                - exampleFix：示例修复代码或伪代码，用于辅助理解，不要求完全可编译。无法给出时返回空字符串。
+                - 不确定的问题放入 suggestions，不要升格成 risks。
 
                 ## 风险等级判定
                 - HIGH：可能导致线上故障、安全漏洞或数据丢失
@@ -57,6 +69,7 @@ public class ReviewPromptBuilder {
                 - 如果未发现明显风险，risks 数组应为空，但 summary 中应说明"未发现明显风险"。
                 - suggestions 可以为空数组。
                 - 所有文字使用中文输出。
+                - codeSnippet 和 exampleFix 必须来自或基于 diff，不要凭空编造代码。
                 """;
     }
 

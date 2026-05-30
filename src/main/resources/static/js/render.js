@@ -94,6 +94,7 @@ const Render = (() => {
         } else {
             html += '<ul class="risk-list">';
             for (const r of risks) {
+                var loc = r.lineNumber ? "（第 " + r.lineNumber + " 行附近）" : "";
                 html += (
                     '<li class="risk-item">' +
                         '<div class="risk-header">' +
@@ -102,9 +103,11 @@ const Render = (() => {
                             '</span>' +
                             '<span class="risk-title">' + escapeHTML(r.title || "") + '</span>' +
                         '</div>' +
-                        '<div class="risk-file">' + escapeHTML(r.file || "") + '</div>' +
+                        '<div class="risk-file">' + escapeHTML(r.file || "") + escapeHTML(loc) + '</div>' +
                         '<div class="risk-reason">' + escapeHTML(r.reason || "") + '</div>' +
                         '<div class="risk-suggestion">&rarr; ' + escapeHTML(r.suggestion || "") + '</div>' +
+                        (r.codeSnippet ? '<pre class="code-snippet"><code>' + escapeHTML(r.codeSnippet) + '</code></pre>' : '') +
+                        (r.exampleFix ? '<div class="example-fix-label">示例修复</div><pre class="code-snippet"><code>' + escapeHTML(r.exampleFix) + '</code></pre>' : '') +
                     '</li>'
                 );
             }
@@ -124,15 +127,18 @@ const Render = (() => {
         } else {
             html += '<ul class="suggestion-list">';
             for (const s of suggestions) {
+                var loc = s.lineNumber ? "（第 " + s.lineNumber + " 行附近）" : "";
                 html += (
                     '<li class="suggestion-item">' +
                         '<span class="suggestion-category">' +
                             escapeHTML(s.category || "其他") +
                         '</span>' +
-                        '<span class="risk-file">' + escapeHTML(s.file || "") + '</span>' +
+                        '<span class="risk-file">' + escapeHTML(s.file || "") + escapeHTML(loc) + '</span>' +
                         '<div class="suggestion-content">' +
                             escapeHTML(s.content || "") +
                         '</div>' +
+                        (s.codeSnippet ? '<pre class="code-snippet"><code>' + escapeHTML(s.codeSnippet) + '</code></pre>' : '') +
+                        (s.exampleFix ? '<div class="example-fix-label">示例改进</div><pre class="code-snippet"><code>' + escapeHTML(s.exampleFix) + '</code></pre>' : '') +
                     '</li>'
                 );
             }
