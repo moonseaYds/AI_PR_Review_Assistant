@@ -1,6 +1,7 @@
 package com.example.ai_review.github;
 
 import com.example.ai_review.common.GitHubApiException;
+import com.example.ai_review.common.RuntimeCredentials;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
@@ -86,6 +87,28 @@ class GitHubPrCommentPublisherTest {
         assertThatThrownBy(() -> publisher.publish(ref, "body"))
                 .isInstanceOf(GitHubApiException.class)
                 .hasMessageContaining("GITHUB_TOKEN");
+    }
+
+    @Test
+    void runtimeTokenAllowsPublishingWithoutEnvironmentToken() {
+        setUpWithToken("");
+
+        server.expect(requestTo(
+                        "https://api.github.com/repos/owner/repo/issues/1/comments"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("Authorization", "Bearer runtime-token"))
+                .andExpect(jsonPath("$.body").value("body"))
+                .andRespond(withSuccess("""
+                        {"html_url": "https://github.com/owner/repo/pull/1#issuecomment-123"}
+                        """, MediaType.APPLICATION_JSON));
+
+        GitHubPullRequestRef ref = new GitHubPullRequestRef("owner", "repo", 1,
+                "https://github.com/owner/repo/pull/1");
+
+        PublishPullRequestCommentResponse response = publisher.publish(
+                ref, "body", new RuntimeCredentials(null, " runtime-token "));
+
+        assertThat(response.commentUrl()).contains("issuecomment-123");
     }
 
     @Test

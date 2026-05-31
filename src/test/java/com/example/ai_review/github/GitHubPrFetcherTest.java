@@ -1,6 +1,7 @@
 package com.example.ai_review.github;
 
 import com.example.ai_review.common.GitHubApiException;
+import com.example.ai_review.common.RuntimeCredentials;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
@@ -84,6 +85,29 @@ class GitHubPrFetcherTest {
                 "https://github.com/owner/repo/pull/1");
 
         fetcher.fetch(ref);
+        server.verify();
+    }
+
+    @Test
+    void runtimeTokenOverridesEmptyEnvironmentToken() {
+        setUpWithToken("");
+
+        server.expect(requestTo(
+                        "https://api.github.com/repos/owner/repo/pulls/1"))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header("Authorization", "Bearer runtime-token"))
+                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+
+        server.expect(requestTo(
+                        "https://api.github.com/repos/owner/repo/pulls/1/files"))
+                .andExpect(method(HttpMethod.GET))
+                .andExpect(header("Authorization", "Bearer runtime-token"))
+                .andRespond(withSuccess("[]", MediaType.APPLICATION_JSON));
+
+        GitHubPullRequestRef ref = new GitHubPullRequestRef("owner", "repo", 1,
+                "https://github.com/owner/repo/pull/1");
+
+        fetcher.fetch(ref, new RuntimeCredentials(null, " runtime-token "));
         server.verify();
     }
 

@@ -23,13 +23,20 @@ const Api = (() => {
         return response.json();
     }
 
-    async function analyzePR(prUrl, analysisMode) {
+    function withCredentials(payload, credentials) {
+        if (credentials && (credentials.deepSeekApiKey || credentials.githubToken)) {
+            payload.credentials = credentials;
+        }
+        return payload;
+    }
+
+    async function analyzePR(prUrl, analysisMode, credentials) {
         var response;
         try {
             response = await fetch(ANALYZE_URL, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ prUrl, analysisMode }),
+                body: JSON.stringify(withCredentials({ prUrl, analysisMode }, credentials)),
             });
         } catch (e) {
             throw { message: "网络请求失败，请检查网络连接和后端服务是否启动",
@@ -38,19 +45,19 @@ const Api = (() => {
         return handleResponse(response);
     }
 
-    async function analyzeDiff(diffText, analysisMode) {
+    async function analyzeDiff(diffText, analysisMode, credentials) {
         var response;
         try {
             response = await fetch(ANALYZE_DIFF_URL, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
+                body: JSON.stringify(withCredentials({
                     repository: "local-project",
                     baseBranch: "main",
                     headBranch: "working-tree",
                     analysisMode,
                     diffText,
-                }),
+                }, credentials)),
             });
         } catch (e) {
             throw { message: "网络请求失败，请检查网络连接和后端服务是否启动",
@@ -59,13 +66,13 @@ const Api = (() => {
         return handleResponse(response);
     }
 
-    async function publishComment(prUrl, analysis) {
+    async function publishComment(prUrl, analysis, credentials) {
         var response;
         try {
             response = await fetch(PUBLISH_URL, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ prUrl, analysis }),
+                body: JSON.stringify(withCredentials({ prUrl, analysis }, credentials)),
             });
         } catch (e) {
             throw { message: "网络请求失败，请检查网络连接和后端服务是否启动",

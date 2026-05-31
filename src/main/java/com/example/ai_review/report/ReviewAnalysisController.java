@@ -33,7 +33,7 @@ public class ReviewAnalysisController {
 
     @PostMapping("/analyze")
     public AnalyzePullRequestResponse analyze(@Valid @RequestBody AnalyzePullRequestRequest request) {
-        return analysisService.analyze(request.prUrl(), request.analysisMode());
+        return analysisService.analyze(request.prUrl(), request.analysisMode(), request.credentials());
     }
 
     @PostMapping("/analyze-diff")
@@ -46,6 +46,6 @@ public class ReviewAnalysisController {
             @Valid @RequestBody PublishPullRequestCommentRequest request) {
         GitHubPullRequestRef ref = parser.parse(request.prUrl());
         String markdown = commentFormatter.format(request.analysis());
-        return commentPublisher.publish(ref, markdown);
+        return commentPublisher.publish(ref, markdown, request.credentials());
     }
 }

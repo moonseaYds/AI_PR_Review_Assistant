@@ -2,8 +2,10 @@ package com.example.ai_review.github;
 
 import com.example.ai_review.common.ErrorCode;
 import com.example.ai_review.common.GitHubApiException;
+import com.example.ai_review.common.RuntimeCredentials;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
@@ -27,26 +29,29 @@ public class GitHubPrFetcher {
                 .defaultHeaders(headers -> {
                     headers.setAccept(List.of(MediaType.parseMediaType("application/vnd.github.v3+json")));
                     headers.set("User-Agent", "ai-pr-review-assistant");
-                    if (!this.token.isEmpty()) {
-                        headers.set("Authorization", "Bearer " + this.token);
-                    }
                 })
                 .build();
     }
 
     public PrFetchResult fetch(GitHubPullRequestRef ref) {
-        GitHubPrResponse prResponse = fetchPr(ref);
-        List<GitHubPrFileResponse> fileResponses = fetchFiles(ref);
+        return fetch(ref, RuntimeCredentials.empty());
+    }
+
+    public PrFetchResult fetch(GitHubPullRequestRef ref, RuntimeCredentials credentials) {
+        String effectiveToken = effectiveToken(credentials);
+        GitHubPrResponse prResponse = fetchPr(ref, effectiveToken);
+        List<GitHubPrFileResponse> fileResponses = fetchFiles(ref, effectiveToken);
 
         return mapToResult(ref, prResponse, fileResponses);
     }
 
-    private GitHubPrResponse fetchPr(GitHubPullRequestRef ref) {
+    private GitHubPrResponse fetchPr(GitHubPullRequestRef ref, String effectiveToken) {
         String url = GITHUB_API_BASE + "/repos/%s/%s/pulls/%d"
                 .formatted(ref.owner(), ref.repo(), ref.pullNumber());
 
         return restClient.get()
                 .uri(url)
+                .headers(headers -> applyAuthorization(headers, effectiveToken))
                 .retrieve()
                 .onStatus(HttpStatusCode::is4xxClientError, (request, response) -> {
                     byte[] body = response.getBody().readAllBytes();
@@ -74,12 +79,13 @@ public class GitHubPrFetcher {
                 .body(GitHubPrResponse.class);
     }
 
-    private List<GitHubPrFileResponse> fetchFiles(GitHubPullRequestRef ref) {
+    private List<GitHubPrFileResponse> fetchFiles(GitHubPullRequestRef ref, String effectiveToken) {
         String url = GITHUB_API_BASE + "/repos/%s/%s/pulls/%d/files"
                 .formatted(ref.owner(), ref.repo(), ref.pullNumber());
 
         GitHubPrFileResponse[] files = restClient.get()
                 .uri(url)
+                .headers(headers -> applyAuthorization(headers, effectiveToken))
                 .retrieve()
                 .onStatus(HttpStatusCode::is4xxClientError, (request, response) -> {
                     byte[] body = response.getBody().readAllBytes();
@@ -112,6 +118,17 @@ public class GitHubPrFetcher {
                 .body(GitHubPrFileResponse[].class);
 
         return files != null ? Arrays.asList(files) : List.of();
+    }
+
+    private String effectiveToken(RuntimeCredentials credentials) {
+        String runtimeToken = credentials != null ? credentials.normalizedGitHubToken() : "";
+        return !runtimeToken.isEmpty() ? runtimeToken : token;
+    }
+
+    private void applyAuthorization(HttpHeaders headers, String effectiveToken) {
+        if (!effectiveToken.isEmpty()) {
+            headers.set("Authorization", "Bearer " + effectiveToken);
+        }
     }
 
     PrFetchResult mapToResult(GitHubPullRequestRef ref, GitHubPrResponse pr,

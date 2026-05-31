@@ -12,6 +12,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -66,7 +67,7 @@ class PullRequestParseControllerTest {
                 List.of(new ChangedFile("App.java", "modified", 5, 2, 7, "@@ -1 +1 @@"))
         );
 
-        when(gitHubPrFetcher.fetch(any())).thenReturn(mockResult);
+        when(gitHubPrFetcher.fetch(any(), any())).thenReturn(mockResult);
 
         mockMvc.perform(post("/api/reviews/fetch-pr")
                         .contentType(MediaType.APPLICATION_JSON)

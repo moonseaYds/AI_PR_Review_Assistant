@@ -1,5 +1,6 @@
 package com.example.ai_review.github;
 
+import com.example.ai_review.common.RuntimeCredentials;
 import com.example.ai_review.report.AnalyzePullRequestResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -11,6 +12,12 @@ public record PublishPullRequestCommentRequest(
 
         @NotNull(message = "分析结果不能为空")
         @Valid
-        AnalyzePullRequestResponse analysis
+        AnalyzePullRequestResponse analysis,
+
+        RuntimeCredentials credentials
 ) {
+
+    public PublishPullRequestCommentRequest(String prUrl, AnalyzePullRequestResponse analysis) {
+        this(prUrl, analysis, RuntimeCredentials.empty());
+    }
 }
