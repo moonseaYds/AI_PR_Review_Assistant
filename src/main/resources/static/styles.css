@@ -135,6 +135,37 @@ body {
     background-repeat: no-repeat;
 }
 
+.credential-panel {
+    margin: 4px 0 16px;
+    padding: 12px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-bg);
+}
+
+.credential-panel legend {
+    padding: 0 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.credential-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.credential-grid .input-group {
+    margin-bottom: 0;
+}
+
+.credential-tip {
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--color-text-muted);
+}
+
 /* ===== Form ===== */
 .review-form {
     background: var(--color-surface);
@@ -616,6 +647,10 @@ body {
 
     .header h1 {
         font-size: 18px;
+    }
+
+    .credential-grid {
+        grid-template-columns: 1fr;
     }
 
     .pr-meta {

@@ -1,6 +1,7 @@
 package com.example.ai_review.review;
 
 import com.example.ai_review.common.ErrorCode;
+import com.example.ai_review.common.RuntimeCredentials;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
@@ -37,18 +38,21 @@ public class DeepSeekClient implements AiReviewModelClient {
                 .baseUrl(chatUrl)
                 .defaultHeaders(headers -> {
                     headers.setContentType(MediaType.APPLICATION_JSON);
-                    if (!this.apiKey.isEmpty()) {
-                        headers.set("Authorization", "Bearer " + this.apiKey);
-                    }
                 })
                 .build();
     }
 
     public String chat(String systemPrompt, String userPrompt) {
-        if (apiKey.isEmpty()) {
+        return chat(systemPrompt, userPrompt, RuntimeCredentials.empty());
+    }
+
+    @Override
+    public String chat(String systemPrompt, String userPrompt, RuntimeCredentials credentials) {
+        String effectiveApiKey = effectiveApiKey(credentials);
+        if (effectiveApiKey.isEmpty()) {
             throw new DeepSeekApiException(ErrorCode.DEEPSEEK_API_KEY_MISSING,
                     "未配置 DeepSeek API Key，请设置环境变量 DEEPSEEK_API_KEY",
-                    "在环境变量或 .env 文件中设置 DEEPSEEK_API_KEY 后重试", false);
+                    "可在环境变量、.env 文件中设置 DEEPSEEK_API_KEY，或在 Web Demo 中临时输入 API Key 后重试", false);
         }
 
         DeepSeekChatRequest request = new DeepSeekChatRequest(
@@ -65,6 +69,7 @@ public class DeepSeekClient implements AiReviewModelClient {
         DeepSeekChatResponse response;
         try {
             response = restClient.post()
+                    .headers(headers -> headers.set("Authorization", "Bearer " + effectiveApiKey))
                     .body(request)
                     .retrieve()
                     .onStatus(status -> status.value() >= 400, (req, res) -> {
@@ -103,6 +108,11 @@ public class DeepSeekClient implements AiReviewModelClient {
         }
 
         return message.content();
+    }
+
+    private String effectiveApiKey(RuntimeCredentials credentials) {
+        String runtimeApiKey = credentials != null ? credentials.normalizedDeepSeekApiKey() : "";
+        return !runtimeApiKey.isEmpty() ? runtimeApiKey : apiKey;
     }
 
     public ReviewReport parseReviewReport(String jsonContent) {

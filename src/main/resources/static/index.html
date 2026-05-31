@@ -57,6 +57,35 @@
                 <p class="mode-tip">FAST 更省 token、更适合日常自查；DEEP 适合大 PR 或关键模块，响应更慢、消耗更高。</p>
             </div>
 
+            <fieldset class="credential-panel">
+                <legend>临时凭证</legend>
+                <div class="credential-grid">
+                    <div class="input-group">
+                        <label for="deepseek-api-key" class="input-label">DeepSeek API Key</label>
+                        <input
+                            type="password"
+                            id="deepseek-api-key"
+                            class="input-field"
+                            placeholder="可选；留空则使用服务端环境变量"
+                            autocomplete="off"
+                            spellcheck="false"
+                        >
+                    </div>
+                    <div class="input-group">
+                        <label for="github-token" class="input-label">GitHub Token</label>
+                        <input
+                            type="password"
+                            id="github-token"
+                            class="input-field"
+                            placeholder="可选；私有仓库或发布评论时使用"
+                            autocomplete="off"
+                            spellcheck="false"
+                        >
+                    </div>
+                </div>
+                <p class="credential-tip">临时凭证只随本次请求发送，不写入数据库、不回显到页面、不保存到浏览器本地存储。公开部署时请使用 HTTPS。</p>
+            </fieldset>
+
             <button type="submit" id="submit-btn" class="btn-primary">
                 开始分析
             </button>

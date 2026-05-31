@@ -46,6 +46,7 @@
 - 已完成报告证据增强，风险点和建议可附带代码片段、示例修复和行号定位，提升 Review 报告的可操作性。后续 IDEA 插件可基于这些字段跳转到对应代码位置。
 - 已完成错误诊断与兜底策略：后端返回稳定错误码、建议处理方式和是否可重试；前端展示结构化错误信息。GitHub API 不可用时引导切换到本地 Diff Review。
 - 已完成模型 Provider 抽象：通过 `AiReviewModelClient` 接口让业务编排层不直接依赖 `DeepSeekClient`，当前默认实现仍为 DeepSeek，后续可插拔接入 OpenAI-compatible、Claude、Gemini 等模型。
+- 已完成运行时临时凭证：Web Demo 可临时输入 DeepSeek API Key 和 GitHub Token，后端仅用于本次请求；留空时继续使用服务端环境变量，便于评委本地复现。
 - 已完成 Review Context 策略选择，支持 FAST 和 DEEP 两种模式。FAST 按风险权重优先保留关键文件上下文，适合快速、低 token 成本的日常自查；DEEP 使用更宽上下文预算，适合大 PR 或关键模块的更完整分析。
 - 已完成 DEEP 分批 Review 能力：当 DEEP 模式下 diff 规模较大时，系统会将变更拆成多个批次分别调用模型，再由后端合并风险点、建议和最高风险等级，降低超大 PR 因上下文限制漏掉关键信息的概率。
 - 已完成合并风险分析：基于 changed files 进行确定性规则判断，识别依赖/构建、配置、安全/权限、公开接口、CI/部署、测试缺失和大规模变更等合并前风险，辅助判断 PR 是否适合进入 main。
@@ -232,7 +233,7 @@ Web Demo 页面展示（已完成）
 
 ## 环境变量
 
-真实密钥只允许保存在本地环境中，不提交到代码仓库。
+真实密钥只允许保存在本地环境中，不提交到代码仓库。项目同时支持 Web Demo 临时输入凭证，方便评委本地复现。
 
 ```bash
 export DEEPSEEK_API_KEY=你的 DeepSeek API Key
@@ -243,9 +244,21 @@ export GITHUB_TOKEN=可选的 GitHub Token
 
 说明：
 
-- `DEEPSEEK_API_KEY`：调用 DeepSeek API 所需，后续由本地 `.env` 或系统环境变量提供。
-- `GITHUB_TOKEN`：用于提高 GitHub API 限额、访问授权仓库，以及向 PR 发布评论。如需使用发布评论功能，token 需具有目标仓库的 PR 评论权限。
+- `DEEPSEEK_API_KEY`：调用 DeepSeek API 所需，可由本地 `.env`、系统环境变量或 Web Demo 临时输入提供。
+- `GITHUB_TOKEN`：用于提高 GitHub API 限额、访问授权仓库，以及向 PR 发布评论。如需使用发布评论功能，token 需具有目标仓库的 PR 评论权限。可由本地环境变量或 Web Demo 临时输入提供。
 - `.env`、`application-local.yml`、`application-local.properties` 已加入 `.gitignore`，不得提交真实密钥。
+
+### 临时凭证与安全边界
+
+为了降低 Demo 复现门槛，Web 页面提供可选的 DeepSeek API Key 和 GitHub Token 输入框：
+
+- 临时凭证只随当前请求发送到后端，不写入数据库、不写入文件、不返回给前端响应。
+- 前端不使用 `localStorage` 或 `sessionStorage` 保存凭证，刷新页面后需要重新输入。
+- 后端优先使用请求中的临时凭证；如果留空，则回退到服务端环境变量。
+- 后端错误信息不会拼接真实 key/token。
+- 本项目比赛 Demo 默认面向本地运行；如果部署到公网，必须使用 HTTPS，并优先改为服务端环境变量或专业密钥管理服务。
+
+注意：前端输入凭证并发送给后端，意味着后端进程在本次请求期间可以接触到密钥，因此不能称为“绝对零暴露”。本项目的设计目标是在本地演示和评委复现时降低配置成本，同时避免持久化和回显带来的额外风险。
 
 ## 本地运行
 
@@ -276,12 +289,13 @@ http://localhost:8080
 
 ### Web Demo 使用流程
 
-1. 启动服务（确保已配置 `DEEPSEEK_API_KEY` 和可选的 `GITHUB_TOKEN`）。
+1. 启动服务。可以提前配置 `DEEPSEEK_API_KEY` 和可选的 `GITHUB_TOKEN`，也可以在 Web 页面中临时输入。
 2. 浏览器打开 `http://localhost:8080/`。
 3. 在输入框中填写 GitHub PR 链接（如 `https://github.com/spring-projects/spring-boot/pull/12345`）。
-4. 点击"开始分析"。
-5. 等待数秒后，页面展示 PR 信息、变更统计、AI 总结、风险等级、风险列表和 Review 建议。
-6. 如未配置 API Key，页面会展示后端返回的清晰错误信息。
+4. 可选填写 DeepSeek API Key 和 GitHub Token。留空则使用服务端环境变量。
+5. 点击"开始分析"。
+6. 等待数秒后，页面展示 PR 信息、变更统计、AI 总结、风险等级、风险列表和 Review 建议。
+7. 如未配置 API Key，页面会展示后端返回的清晰错误信息。
 
 ## 当前接口
 
@@ -631,11 +645,15 @@ Content-Type: application/json
 ```json
 {
   "prUrl": "https://github.com/owner/repo/pull/123",
-  "analysisMode": "FAST"
+  "analysisMode": "FAST",
+  "credentials": {
+    "deepSeekApiKey": "可选，留空则使用服务端 DEEPSEEK_API_KEY",
+    "githubToken": "可选，留空则使用服务端 GITHUB_TOKEN"
+  }
 }
 ```
 
-`analysisMode` 可选，默认为 `FAST`。如果选择 `DEEP`，系统会使用更宽的上下文预算分析同一个 PR。
+`analysisMode` 可选，默认为 `FAST`。如果选择 `DEEP`，系统会使用更宽的上下文预算分析同一个 PR。`credentials` 可选，适合本地 Demo 临时输入；响应不会返回该字段。
 
 当 `analysisMode` 为 `DEEP` 且 diff 规模较大时，接口会启用分批 Review。响应中的 `batchReview`、`reviewBatches` 和 `batchStrategy` 会说明是否触发分批、实际批次数和聚合策略。
 
@@ -749,6 +767,7 @@ PR 无变更文件返回 400：
 {
   "code": "UPSTREAM_ERROR",
   "message": "未配置 DeepSeek API Key，请设置环境变量 DEEPSEEK_API_KEY",
+  "suggestion": "可在环境变量、.env 文件中设置 DEEPSEEK_API_KEY，或在 Web Demo 中临时输入 API Key 后重试",
   "timestamp": "2025-01-01T00:00:00Z"
 }
 ```
@@ -758,6 +777,7 @@ PR 无变更文件返回 400：
 - 该接口一次性完成从 PR 链接到 AI Review 报告的完整流程。
 - 响应同时包含 PR 元信息（owner、repo、title、author、state、分支）、变更统计、Review Context 模式、分批状态、合并风险和截断信息。
 - 不返回完整 patch 内容，避免响应过大。
+- 请求中的临时凭证只参与本次 GitHub 拉取和模型调用，不进入响应体。
 - 所有分段接口（`parse-pr-url`、`fetch-pr`、`build-diff-context`、`ai-review`）仍可单独调用。
 
 合并风险分析说明：
@@ -783,6 +803,9 @@ Content-Type: application/json
   "baseBranch": "main",
   "headBranch": "working-tree",
   "analysisMode": "FAST",
+  "credentials": {
+    "deepSeekApiKey": "可选，留空则使用服务端 DEEPSEEK_API_KEY"
+  },
   "diffText": "diff --git a/src/App.java b/src/App.java\n--- a/src/App.java\n+++ b/src/App.java\n@@ -1 +1 @@\n-old\n+new"
 }
 ```
@@ -814,6 +837,7 @@ Content-Type: application/json
 说明：
 
 - 不调用 GitHub API，不检查 GitHub token。
+- 如请求中传入 `credentials.deepSeekApiKey`，后端优先使用该临时 Key；否则使用服务端环境变量。
 - 解析标准 unified diff 格式（`diff --git a/... b/...`），支持新增、删除和修改文件识别。
 - Web Demo 页面支持切换到"本地 Diff"模式，粘贴 `git diff` 输出即可分析。
 - 本地 Diff 模式成功后不展示"发布到 PR 评论"按钮。
@@ -828,7 +852,7 @@ Content-Type: application/json
 
 本接口用于将 AI Review 报告以 Markdown 格式发布到 GitHub PR 评论区。该功能体现本项目的差异化定位：Review 结果回到 PR 协作现场，而非仅停留在 Web 页面。
 
-**需要 `GITHUB_TOKEN`**：token 必须具有对目标仓库 PR 的评论权限。未配置或权限不足时会返回清晰错误。
+**需要 `GITHUB_TOKEN`**：token 必须具有对目标仓库 PR 的评论权限。可以使用服务端环境变量，也可以在 Web Demo 中临时输入。未配置或权限不足时会返回清晰错误。
 
 请求示例（传入 `/api/reviews/analyze` 的完整分析结果，后端自动生成 Markdown 并发布）：
 
@@ -857,6 +881,9 @@ Content-Type: application/json
       "suggestions": [],
       "model": "deepseek-v4-flash"
     }
+  },
+  "credentials": {
+    "githubToken": "可选，留空则使用服务端 GITHUB_TOKEN"
   }
 }
 ```
@@ -878,6 +905,7 @@ Content-Type: application/json
 {
   "code": "UPSTREAM_ERROR",
   "message": "发布 PR 评论需要配置 GITHUB_TOKEN，请在环境变量中设置一个有目标仓库评论权限的 GitHub Token",
+  "suggestion": "可在环境变量中设置 GITHUB_TOKEN，或在 Web Demo 中临时输入 GitHub Token 后重试",
   "timestamp": "2025-01-01T00:00:00Z"
 }
 ```
@@ -898,6 +926,7 @@ analysis 缺失返回 400：
 - 发布必须由用户显式点击触发，不会自动发布。
 - 评论末尾会标注“由 AI PR Review Assistant 自动生成，仅作辅助审查建议”。
 - Web Demo 页面在分析成功后显示“发布到 PR 评论”按钮。
+- 请求中的临时 GitHub Token 不会进入响应体或评论正文。
 
 ## 原创说明
 

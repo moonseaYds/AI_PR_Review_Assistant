@@ -1,12 +1,20 @@
 package com.example.ai_review.review;
 
+import com.example.ai_review.common.RuntimeCredentials;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 class DeepSeekClientTest {
 
@@ -151,6 +159,36 @@ class DeepSeekClientTest {
         DeepSeekApiException ex = assertThrows(DeepSeekApiException.class, () ->
                 client.chat("system", "user"));
         assertTrue(ex.getMessage().contains("DEEPSEEK_API_KEY"));
+    }
+
+    @Test
+    void usesRuntimeApiKeyWhenEnvironmentApiKeyEmpty() {
+        RestClient.Builder builder = RestClient.builder();
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        DeepSeekClient client = new DeepSeekClient(
+                builder,
+                "https://api.deepseek.com",
+                "",
+                "deepseek-v4-flash",
+                objectMapper
+        );
+
+        server.expect(requestTo("https://api.deepseek.com/chat/completions"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("Authorization", "Bearer runtime-key"))
+                .andRespond(withSuccess("""
+                        {
+                          "choices": [
+                            { "message": { "content": "{\\"summary\\":\\"OK\\",\\"riskLevel\\":\\"LOW\\",\\"risks\\":[],\\"suggestions\\":[]}" } }
+                          ]
+                        }
+                        """, MediaType.APPLICATION_JSON));
+
+        String response = client.chat("system", "user",
+                new RuntimeCredentials(" runtime-key ", null));
+
+        assertTrue(response.contains("\"summary\":\"OK\""));
+        server.verify();
     }
 
     @Test

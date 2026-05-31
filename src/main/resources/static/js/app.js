@@ -23,6 +23,7 @@
     var currentMode = "pr-url";
     var lastPrUrl = "";
     var lastResult = null;
+    var lastCredentials = null;
 
     // --- mode switching ---
     document.querySelector(".mode-switcher").addEventListener("click", function (e) {
@@ -81,11 +82,22 @@
         return analysisModeSelect && analysisModeSelect.value ? analysisModeSelect.value : "FAST";
     }
 
+    function getRuntimeCredentials() {
+        var deepSeekInput = document.getElementById("deepseek-api-key");
+        var githubInput = document.getElementById("github-token");
+        var credentials = {
+            deepSeekApiKey: deepSeekInput ? deepSeekInput.value.trim() : "",
+            githubToken: githubInput ? githubInput.value.trim() : "",
+        };
+        return credentials.deepSeekApiKey || credentials.githubToken ? credentials : null;
+    }
+
     async function analyzePR(prUrl, analysisMode) {
         setState(STATE.LOADING);
         lastPrUrl = prUrl;
+        lastCredentials = getRuntimeCredentials();
         try {
-            var data = await Api.analyzePR(prUrl, analysisMode);
+            var data = await Api.analyzePR(prUrl, analysisMode, lastCredentials);
             setState(STATE.SUCCESS);
             Render.result(resultArea, data);
             lastResult = data;
@@ -106,8 +118,9 @@
     async function analyzeLocalDiff(diffText, analysisMode) {
         setState(STATE.LOADING);
         lastPrUrl = "";
+        lastCredentials = getRuntimeCredentials();
         try {
-            var data = await Api.analyzeDiff(diffText, analysisMode);
+            var data = await Api.analyzeDiff(diffText, analysisMode, lastCredentials);
             setState(STATE.SUCCESS);
             Render.result(resultArea, data);
             lastResult = data;
@@ -130,7 +143,8 @@
         }
         Render.publishLoading();
         try {
-            var response = await Api.publishComment(lastPrUrl, lastResult);
+            var response = await Api.publishComment(
+                lastPrUrl, lastResult, getRuntimeCredentials() || lastCredentials);
             Render.publishSuccess(response.commentUrl);
         } catch (err) {
             Render.publishError(err);

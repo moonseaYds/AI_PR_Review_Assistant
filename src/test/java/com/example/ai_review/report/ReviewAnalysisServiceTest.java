@@ -22,6 +22,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -65,7 +66,7 @@ class ReviewAnalysisServiceTest {
         PrFetchResult fetchResult = new PrFetchResult("owner", "repo", 1,
                 "Fix bug", "octocat", "open", "main", "feature/fix",
                 List.of(file));
-        when(fetcher.fetch(ref)).thenReturn(fetchResult);
+        when(fetcher.fetch(eq(ref), any())).thenReturn(fetchResult);
 
         DiffReviewContext diffContext = new DiffReviewContext(
                 "owner", "repo", 1, "Fix bug", 1, 5, 2, 7, false, null,
@@ -84,7 +85,7 @@ class ReviewAnalysisServiceTest {
                   "suggestions": []
                 }
                 """;
-        when(aiModelClient.chat("system prompt", "user prompt")).thenReturn(rawJson);
+        when(aiModelClient.chat(eq("system prompt"), eq("user prompt"), any())).thenReturn(rawJson);
 
         ReviewReport parsedReport = new ReviewReport(
                 "代码质量良好", RiskLevel.LOW, List.of(), List.of(), null);
@@ -124,7 +125,7 @@ class ReviewAnalysisServiceTest {
         PrFetchResult fetchResult = new PrFetchResult("owner", "repo", 1,
                 "Empty PR", "octocat", "open", "main", "feature/empty",
                 List.of());
-        when(fetcher.fetch(ref)).thenReturn(fetchResult);
+        when(fetcher.fetch(eq(ref), any())).thenReturn(fetchResult);
 
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () ->
                 service.analyze("https://github.com/owner/repo/pull/1"));
@@ -140,7 +141,7 @@ class ReviewAnalysisServiceTest {
         ChangedFile file = new ChangedFile("A.java", "modified", 1, 0, 1, "@@ diff");
         PrFetchResult fetchResult = new PrFetchResult("o", "r", 1,
                 "PR", "author", "open", "main", "feat", List.of(file));
-        when(fetcher.fetch(ref)).thenReturn(fetchResult);
+        when(fetcher.fetch(eq(ref), any())).thenReturn(fetchResult);
 
         DiffReviewContext diffContext = new DiffReviewContext(
                 "o", "r", 1, "PR", 1, 1, 0, 1, false, null,
@@ -159,7 +160,7 @@ class ReviewAnalysisServiceTest {
                   "suggestions": []
                 }
                 """;
-        when(aiModelClient.chat("s", "u")).thenReturn(rawJson);
+        when(aiModelClient.chat(eq("s"), eq("u"), any())).thenReturn(rawJson);
 
         // parseReviewReport 返回 model=null，模拟 DeepSeek JSON 不含 model 字段
         ReviewReport parsedWithoutModel = new ReviewReport(
@@ -194,7 +195,7 @@ class ReviewAnalysisServiceTest {
 
         when(promptBuilder.buildSystemPrompt()).thenReturn("s");
         when(promptBuilder.buildUserPrompt(any())).thenReturn("u");
-        when(aiModelClient.chat("s", "u")).thenReturn("""
+        when(aiModelClient.chat(eq("s"), eq("u"), any())).thenReturn("""
                 {"summary":"OK","riskLevel":"LOW","risks":[],"suggestions":[]}""");
         when(aiModelClient.parseReviewReport(any()))
                 .thenReturn(new ReviewReport("OK", RiskLevel.LOW, List.of(), List.of(), null));
@@ -229,14 +230,14 @@ class ReviewAnalysisServiceTest {
                 new ChangedFile("src/main/java/BService.java", "modified", 100, 0, 100, "b".repeat(9000)),
                 new ChangedFile("src/main/java/SecurityConfig.java", "modified", 100, 0, 100, "c".repeat(9000))
         );
-        when(fetcher.fetch(ref)).thenReturn(new PrFetchResult(
+        when(fetcher.fetch(eq(ref), any())).thenReturn(new PrFetchResult(
                 "o", "r", 2, "Large PR", "dev", "open", "main", "feat/batch", files));
 
         when(promptBuilder.buildSystemPrompt()).thenReturn("s");
         when(promptBuilder.buildBatchUserPrompt(any(), anyInt(), anyInt()))
                 .thenReturn("u1", "u2");
-        when(aiModelClient.chat("s", "u1")).thenReturn("raw1");
-        when(aiModelClient.chat("s", "u2")).thenReturn("raw2");
+        when(aiModelClient.chat(eq("s"), eq("u1"), any())).thenReturn("raw1");
+        when(aiModelClient.chat(eq("s"), eq("u2"), any())).thenReturn("raw2");
         when(aiModelClient.parseReviewReport("raw1"))
                 .thenReturn(new ReviewReport("第一批未发现明显风险", RiskLevel.LOW, List.of(), List.of(), null));
         when(aiModelClient.parseReviewReport("raw2"))
@@ -257,7 +258,7 @@ class ReviewAnalysisServiceTest {
         assertEquals(RiskLevel.HIGH, response.review().riskLevel());
         assertEquals(1, response.review().risks().size());
         assertTrue(response.review().summary().contains("共 2 批"));
-        verify(aiModelClient, times(2)).chat(any(), any());
+        verify(aiModelClient, times(2)).chat(any(), any(), any());
         verify(promptBuilder, times(2)).buildBatchUserPrompt(any(), anyInt(), anyInt());
     }
 }

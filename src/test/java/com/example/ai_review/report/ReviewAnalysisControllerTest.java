@@ -2,6 +2,7 @@ package com.example.ai_review.report;
 
 import com.example.ai_review.common.ErrorCode;
 import com.example.ai_review.common.GitHubApiException;
+import com.example.ai_review.common.RuntimeCredentials;
 import com.example.ai_review.diff.AnalysisMode;
 import com.example.ai_review.github.GitHubPrCommentPublisher;
 import com.example.ai_review.github.GitHubPullRequestRef;
@@ -11,6 +12,7 @@ import com.example.ai_review.review.DeepSeekApiException;
 import com.example.ai_review.review.ReviewReport;
 import com.example.ai_review.review.RiskLevel;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -50,7 +52,7 @@ class ReviewAnalysisControllerTest {
 
     @Test
     void analyzeReturnsStructuredResponse() throws Exception {
-        when(analysisService.analyze(any(), any())).thenReturn(new AnalyzePullRequestResponse(
+        when(analysisService.analyze(any(), any(), any())).thenReturn(new AnalyzePullRequestResponse(
                 "owner", "repo", 1, "Fix bug", "octocat", "open",
                 "main", "feature/fix", 1, 5, 2, 7, false, null,
                 new ReviewReport("代码质量良好", RiskLevel.LOW,
@@ -90,7 +92,7 @@ class ReviewAnalysisControllerTest {
 
     @Test
     void analyzeAcceptsDeepAnalysisMode() throws Exception {
-        when(analysisService.analyze(any(), eq(AnalysisMode.DEEP))).thenReturn(new AnalyzePullRequestResponse(
+        when(analysisService.analyze(any(), eq(AnalysisMode.DEEP), any())).thenReturn(new AnalyzePullRequestResponse(
                 "owner", "repo", 1, "Deep review", "octocat", "open",
                 "main", "feature/deep", 1, 20, 3, 23, false, null,
                 AnalysisMode.DEEP, "DEEP 模式：使用更宽上下文预算模拟分批分析覆盖面，单文件限制 8000 字符，总限制 48000 字符",
@@ -113,13 +115,51 @@ class ReviewAnalysisControllerTest {
                 .andExpect(jsonPath("$.batchReview").value(false))
                 .andExpect(jsonPath("$.review.summary").value("深度分析完成"));
 
-        verify(analysisService).analyze(any(), eq(AnalysisMode.DEEP));
+        verify(analysisService).analyze(any(), eq(AnalysisMode.DEEP), any());
+    }
+
+    @Test
+    void analyzePassesRuntimeCredentialsWithoutReturningThem() throws Exception {
+        when(analysisService.analyze(any(), any(), any())).thenReturn(new AnalyzePullRequestResponse(
+                "owner", "repo", 1, "Credential review", "octocat", "open",
+                "main", "feature/credentials", 1, 1, 0, 1, false, null,
+                new ReviewReport("OK", RiskLevel.LOW,
+                        List.of(), List.of(), "deepseek-v4-flash")
+        ));
+
+        mockMvc.perform(post("/api/reviews/analyze")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "prUrl": "https://github.com/owner/repo/pull/1",
+                                  "analysisMode": "FAST",
+                                  "credentials": {
+                                    "deepSeekApiKey": "runtime-deepseek-key",
+                                    "githubToken": "runtime-github-token"
+                                  }
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.review.summary").value("OK"))
+                .andExpect(jsonPath("$.credentials").doesNotExist());
+
+        ArgumentCaptor<RuntimeCredentials> credentialsCaptor =
+                ArgumentCaptor.forClass(RuntimeCredentials.class);
+        verify(analysisService).analyze(
+                eq("https://github.com/owner/repo/pull/1"),
+                eq(AnalysisMode.FAST),
+                credentialsCaptor.capture());
+        org.junit.jupiter.api.Assertions.assertNotNull(credentialsCaptor.getValue());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "runtime-deepseek-key", credentialsCaptor.getValue().normalizedDeepSeekApiKey());
+        org.junit.jupiter.api.Assertions.assertEquals(
+                "runtime-github-token", credentialsCaptor.getValue().normalizedGitHubToken());
     }
 
 
     @Test
     void analyzeReturns400ForIllegalArgument() throws Exception {
-        when(analysisService.analyze(any(), any()))
+        when(analysisService.analyze(any(), any(), any()))
                 .thenThrow(new IllegalArgumentException("当前仅支持 github.com 的 PR 链接"));
 
         mockMvc.perform(post("/api/reviews/analyze")
@@ -149,7 +189,7 @@ class ReviewAnalysisControllerTest {
 
     @Test
     void analyzeReturnsInvalidPrUrlForNonGithubDomain() throws Exception {
-        when(analysisService.analyze(any(), any()))
+        when(analysisService.analyze(any(), any(), any()))
                 .thenThrow(new com.example.ai_review.common.BadRequestException(
                         com.example.ai_review.common.ErrorCode.INVALID_PR_URL,
                         "当前仅支持 github.com 的 PR 链接",
@@ -169,7 +209,7 @@ class ReviewAnalysisControllerTest {
 
     @Test
     void analyzeReturns502ForGitHubError() throws Exception {
-        when(analysisService.analyze(any(), any()))
+        when(analysisService.analyze(any(), any(), any()))
                 .thenThrow(new GitHubApiException("GitHub PR 不存在"));
 
         mockMvc.perform(post("/api/reviews/analyze")
@@ -186,7 +226,7 @@ class ReviewAnalysisControllerTest {
 
     @Test
     void analyzeReturns502ForDeepSeekError() throws Exception {
-        when(analysisService.analyze(any(), any()))
+        when(analysisService.analyze(any(), any(), any()))
                 .thenThrow(new DeepSeekApiException(
                         "未配置 DeepSeek API Key，请设置环境变量 DEEPSEEK_API_KEY"));
 
@@ -204,7 +244,7 @@ class ReviewAnalysisControllerTest {
 
     @Test
     void analyzeReturns400ForEmptyChangedFiles() throws Exception {
-        when(analysisService.analyze(any(), any()))
+        when(analysisService.analyze(any(), any(), any()))
                 .thenThrow(new IllegalArgumentException("该 PR 没有变更文件"));
 
         mockMvc.perform(post("/api/reviews/analyze")
@@ -221,7 +261,7 @@ class ReviewAnalysisControllerTest {
 
     @Test
     void analyzeReturnsFullReportWithRisks() throws Exception {
-        when(analysisService.analyze(any(), any())).thenReturn(new AnalyzePullRequestResponse(
+        when(analysisService.analyze(any(), any(), any())).thenReturn(new AnalyzePullRequestResponse(
                 "o", "r", 2, "Risky PR", "dev", "open",
                 "main", "feat/risky", 2, 20, 5, 25, true, "超过总长度限制",
                 new ReviewReport("存在高风险", RiskLevel.HIGH,
@@ -257,7 +297,7 @@ class ReviewAnalysisControllerTest {
                 "https://github.com/o/r/pull/1");
         when(parser.parse("https://github.com/o/r/pull/1")).thenReturn(ref);
         when(commentFormatter.format(any())).thenReturn("## Review\n\nmarkdown");
-        when(commentPublisher.publish(ref, "## Review\n\nmarkdown"))
+        when(commentPublisher.publish(eq(ref), eq("## Review\n\nmarkdown"), any()))
                 .thenReturn(new PublishPullRequestCommentResponse(
                         "o", "r", 1,
                         "https://github.com/o/r/pull/1#issuecomment-123"));
@@ -345,7 +385,7 @@ class ReviewAnalysisControllerTest {
                 "https://github.com/o/r/pull/1");
         when(parser.parse("https://github.com/o/r/pull/1")).thenReturn(ref);
         when(commentFormatter.format(any())).thenReturn("## md");
-        when(commentPublisher.publish(ref, "## md"))
+        when(commentPublisher.publish(eq(ref), eq("## md"), any()))
                 .thenThrow(new GitHubApiException("发布 PR 评论需要配置 GITHUB_TOKEN"));
 
         mockMvc.perform(post("/api/reviews/publish-comment")
@@ -432,7 +472,7 @@ class ReviewAnalysisControllerTest {
 
     @Test
     void analyzeReturnsGithubPrNotFound() throws Exception {
-        when(analysisService.analyze(any(), any()))
+        when(analysisService.analyze(any(), any(), any()))
                 .thenThrow(new GitHubApiException(ErrorCode.GITHUB_PR_NOT_FOUND,
                         "GitHub PR 不存在", "确认链接正确", false));
 
@@ -455,7 +495,7 @@ class ReviewAnalysisControllerTest {
                 "https://github.com/o/r/pull/1");
         when(parser.parse("https://github.com/o/r/pull/1")).thenReturn(ref);
         when(commentFormatter.format(any())).thenReturn("md");
-        when(commentPublisher.publish(ref, "md"))
+        when(commentPublisher.publish(eq(ref), eq("md"), any()))
                 .thenThrow(new GitHubApiException(ErrorCode.GITHUB_TOKEN_REQUIRED,
                         "发布 PR 评论需要配置 GITHUB_TOKEN",
                         "设置 GITHUB_TOKEN 后重试", false));

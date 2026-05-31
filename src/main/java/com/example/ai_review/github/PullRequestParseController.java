@@ -33,7 +33,7 @@ public class PullRequestParseController {
     @PostMapping("/fetch-pr")
     public PrFetchResult fetchPullRequest(@Valid @RequestBody FetchPullRequestRequest request) {
         GitHubPullRequestRef ref = parser.parse(request.prUrl());
-        return fetcher.fetch(ref);
+        return fetcher.fetch(ref, request.credentials());
     }
 
     @PostMapping("/build-diff-context")

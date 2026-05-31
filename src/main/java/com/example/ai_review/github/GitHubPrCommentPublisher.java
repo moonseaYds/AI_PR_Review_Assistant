@@ -2,10 +2,12 @@ package com.example.ai_review.github;
 
 import com.example.ai_review.common.ErrorCode;
 import com.example.ai_review.common.GitHubApiException;
+import com.example.ai_review.common.RuntimeCredentials;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatusCode;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
@@ -29,18 +31,22 @@ public class GitHubPrCommentPublisher {
                     headers.setAccept(List.of(MediaType.parseMediaType("application/vnd.github.v3+json")));
                     headers.setContentType(MediaType.APPLICATION_JSON);
                     headers.set("User-Agent", "ai-pr-review-assistant");
-                    if (!this.token.isEmpty()) {
-                        headers.set("Authorization", "Bearer " + this.token);
-                    }
                 })
                 .build();
     }
 
     public PublishPullRequestCommentResponse publish(GitHubPullRequestRef ref, String body) {
-        if (token.isEmpty()) {
+        return publish(ref, body, RuntimeCredentials.empty());
+    }
+
+    public PublishPullRequestCommentResponse publish(GitHubPullRequestRef ref,
+                                                     String body,
+                                                     RuntimeCredentials credentials) {
+        String effectiveToken = effectiveToken(credentials);
+        if (effectiveToken.isEmpty()) {
             throw new GitHubApiException(ErrorCode.GITHUB_TOKEN_REQUIRED,
                     "发布 PR 评论需要配置 GITHUB_TOKEN，请设置一个有目标仓库评论权限的 GitHub Token",
-                    "在环境变量中设置 GITHUB_TOKEN 后重试", false);
+                    "可在环境变量中设置 GITHUB_TOKEN，或在 Web Demo 中临时输入 GitHub Token 后重试", false);
         }
 
         String url = GITHUB_API_BASE + "/repos/%s/%s/issues/%d/comments"
@@ -51,6 +57,7 @@ public class GitHubPrCommentPublisher {
         try {
             GitHubCommentResponse commentResponse = restClient.post()
                     .uri(url)
+                    .headers(headers -> applyAuthorization(headers, effectiveToken))
                     .body(requestBody)
                     .retrieve()
                     .onStatus(HttpStatusCode::is4xxClientError, (request, response) -> {
@@ -93,6 +100,17 @@ public class GitHubPrCommentPublisher {
             throw new GitHubApiException(ErrorCode.GITHUB_NETWORK_ERROR,
                     "发布 PR 评论时发生网络错误，请检查网络连接",
                     "检查网络后重试", true, e);
+        }
+    }
+
+    private String effectiveToken(RuntimeCredentials credentials) {
+        String runtimeToken = credentials != null ? credentials.normalizedGitHubToken() : "";
+        return !runtimeToken.isEmpty() ? runtimeToken : token;
+    }
+
+    private void applyAuthorization(HttpHeaders headers, String effectiveToken) {
+        if (!effectiveToken.isEmpty()) {
+            headers.set("Authorization", "Bearer " + effectiveToken);
         }
     }
 

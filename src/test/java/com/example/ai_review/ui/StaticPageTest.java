@@ -201,6 +201,23 @@ class StaticPageTest {
     }
 
     @Test
+    void indexHtmlHasRuntimeCredentialInputs() throws Exception {
+        byte[] bytes = mockMvc.perform(get("/index.html"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsByteArray();
+        String body = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+
+        assertTrue(body.contains("deepseek-api-key"),
+                "index.html should contain DeepSeek API Key input");
+        assertTrue(body.contains("github-token"),
+                "index.html should contain GitHub Token input");
+        assertTrue(body.contains("type=\"password\""),
+                "credential inputs should use password type");
+        assertTrue(body.contains("不保存到浏览器本地存储"),
+                "index.html should explain credential persistence boundary");
+    }
+
+    @Test
     void apiJsHasAnalyzeDiff() throws Exception {
         byte[] bytes = mockMvc.perform(get("/js/api.js"))
                 .andExpect(status().isOk())
@@ -232,6 +249,23 @@ class StaticPageTest {
                 "app.js should read selected Review Context mode");
         assertTrue(body.contains("analysis-mode"),
                 "app.js should reference analysis-mode selector");
+    }
+
+    @Test
+    void appJsUsesRuntimeCredentialsWithoutBrowserStorage() throws Exception {
+        byte[] bytes = mockMvc.perform(get("/js/app.js"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsByteArray();
+        String body = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+
+        assertTrue(body.contains("getRuntimeCredentials"),
+                "app.js should collect runtime credentials");
+        assertTrue(body.contains("deepSeekApiKey"),
+                "app.js should send DeepSeek runtime key field");
+        assertTrue(body.contains("githubToken"),
+                "app.js should send GitHub runtime token field");
+        assertTrue(!body.contains("localStorage") && !body.contains("sessionStorage"),
+                "app.js should not persist credentials in browser storage");
     }
 
     @Test

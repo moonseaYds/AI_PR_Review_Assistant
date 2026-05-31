@@ -1,5 +1,6 @@
 package com.example.ai_review.report;
 
+import com.example.ai_review.common.RuntimeCredentials;
 import com.example.ai_review.diff.AnalyzeDiffRequest;
 import com.example.ai_review.diff.AnalysisMode;
 import com.example.ai_review.diff.BuildDiffContextRequest;
@@ -58,9 +59,15 @@ public class ReviewAnalysisService {
     }
 
     public AnalyzePullRequestResponse analyze(String prUrl, AnalysisMode analysisMode) {
+        return analyze(prUrl, analysisMode, RuntimeCredentials.empty());
+    }
+
+    public AnalyzePullRequestResponse analyze(String prUrl,
+                                              AnalysisMode analysisMode,
+                                              RuntimeCredentials credentials) {
         AnalysisMode mode = AnalysisMode.defaultIfNull(analysisMode);
         GitHubPullRequestRef ref = parser.parse(prUrl);
-        PrFetchResult fetchResult = fetcher.fetch(ref);
+        PrFetchResult fetchResult = fetcher.fetch(ref, credentials);
 
         if (fetchResult.changedFiles() == null || fetchResult.changedFiles().isEmpty()) {
             throw new IllegalArgumentException(
@@ -78,7 +85,7 @@ public class ReviewAnalysisService {
 
         DiffReviewContext diffContext = diffContextBuilder.build(buildRequest);
 
-        ReviewExecutionResult reviewResult = review(buildRequest, diffContext);
+        ReviewExecutionResult reviewResult = review(buildRequest, diffContext, credentials);
         MergeRiskReport mergeRisk = mergeRiskAnalyzer.analyze(fetchResult.changedFiles());
 
         return new AnalyzePullRequestResponse(
@@ -120,7 +127,7 @@ public class ReviewAnalysisService {
 
         DiffReviewContext diffContext = diffContextBuilder.build(buildRequest);
 
-        ReviewExecutionResult reviewResult = review(buildRequest, diffContext);
+        ReviewExecutionResult reviewResult = review(buildRequest, diffContext, request.credentials());
         MergeRiskReport mergeRisk = mergeRiskAnalyzer.analyze(changedFiles);
 
         return new AnalyzePullRequestResponse(
@@ -142,26 +149,29 @@ public class ReviewAnalysisService {
         );
     }
 
-    private ReviewExecutionResult review(BuildDiffContextRequest request, DiffReviewContext diffContext) {
+    private ReviewExecutionResult review(BuildDiffContextRequest request,
+                                         DiffReviewContext diffContext,
+                                         RuntimeCredentials credentials) {
         if (diffContext.analysisMode() == AnalysisMode.DEEP) {
             List<List<ChangedFile>> batches = splitIntoDeepBatches(request.changedFiles());
             if (batches.size() > 1) {
-                return batchReview(request, batches);
+                return batchReview(request, batches, credentials);
             }
         }
-        return singleReview(diffContext);
+        return singleReview(diffContext, credentials);
     }
 
-    private ReviewExecutionResult singleReview(DiffReviewContext diffContext) {
+    private ReviewExecutionResult singleReview(DiffReviewContext diffContext, RuntimeCredentials credentials) {
         String systemPrompt = promptBuilder.buildSystemPrompt();
         String userPrompt = promptBuilder.buildUserPrompt(diffContext);
-        String rawResponse = modelClient.chat(systemPrompt, userPrompt);
+        String rawResponse = modelClient.chat(systemPrompt, userPrompt, credentials);
         ReviewReport parsedReport = modelClient.parseReviewReport(rawResponse);
         return new ReviewExecutionResult(withModel(parsedReport), false, 1, null);
     }
 
     private ReviewExecutionResult batchReview(BuildDiffContextRequest request,
-                                              List<List<ChangedFile>> batches) {
+                                              List<List<ChangedFile>> batches,
+                                              RuntimeCredentials credentials) {
         String systemPrompt = promptBuilder.buildSystemPrompt();
         List<ReviewReport> batchReports = new ArrayList<>();
 
@@ -176,7 +186,7 @@ public class ReviewAnalysisService {
             );
             DiffReviewContext batchContext = diffContextBuilder.build(batchRequest);
             String userPrompt = promptBuilder.buildBatchUserPrompt(batchContext, i + 1, batches.size());
-            String rawResponse = modelClient.chat(systemPrompt, userPrompt);
+            String rawResponse = modelClient.chat(systemPrompt, userPrompt, credentials);
             batchReports.add(modelClient.parseReviewReport(rawResponse));
         }
 
