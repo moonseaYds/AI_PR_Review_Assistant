@@ -11,7 +11,7 @@ import org.springframework.web.client.RestClient;
 import java.util.List;
 
 @Service
-public class DeepSeekClient {
+public class DeepSeekClient implements AiReviewModelClient {
 
     private final RestClient restClient;
     private final String apiKey;
@@ -137,7 +137,13 @@ public class DeepSeekClient {
         return report;
     }
 
+    @Override
     public String getModel() {
         return model;
+    }
+
+    @Override
+    public String getProviderName() {
+        return "deepseek";
     }
 }

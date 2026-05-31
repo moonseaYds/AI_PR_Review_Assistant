@@ -25,19 +25,19 @@ class AiReviewControllerTest {
     private MockMvc mockMvc;
 
     @MockitoBean
-    private DeepSeekClient deepSeekClient;
+    private AiReviewModelClient modelClient;
 
     @Test
     void aiReviewReturnsStructuredReport() throws Exception {
-        when(deepSeekClient.chat(any(), any())).thenReturn("any json");
-        when(deepSeekClient.parseReviewReport(any())).thenReturn(new ReviewReport(
+        when(modelClient.chat(any(), any())).thenReturn("any json");
+        when(modelClient.parseReviewReport(any())).thenReturn(new ReviewReport(
                 "本次 PR 修复了登录 Bug，代码质量良好",
                 RiskLevel.LOW,
                 List.of(new RiskItem("App.java", "LOW", "命名建议", "变量 x 含义不明确", "改为 userLoginCount", null, null, null)),
                 List.of(new SuggestionItem("App.java", "可维护性", "建议添加单元测试", null, null, null)),
                 "deepseek-v4-flash"
         ));
-        when(deepSeekClient.getModel()).thenReturn("deepseek-v4-flash");
+        when(modelClient.getModel()).thenReturn("deepseek-v4-flash");
 
         mockMvc.perform(post("/api/reviews/ai-review")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -79,15 +79,15 @@ class AiReviewControllerTest {
 
     @Test
     void aiReviewReturnsEmptyRisksForCleanCode() throws Exception {
-        when(deepSeekClient.chat(any(), any())).thenReturn("any json");
-        when(deepSeekClient.parseReviewReport(any())).thenReturn(new ReviewReport(
+        when(modelClient.chat(any(), any())).thenReturn("any json");
+        when(modelClient.parseReviewReport(any())).thenReturn(new ReviewReport(
                 "未发现明显风险，代码简洁清晰",
                 RiskLevel.LOW,
                 List.of(),
                 List.of(),
                 "deepseek-v4-flash"
         ));
-        when(deepSeekClient.getModel()).thenReturn("deepseek-v4-flash");
+        when(modelClient.getModel()).thenReturn("deepseek-v4-flash");
 
         mockMvc.perform(post("/api/reviews/ai-review")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -127,8 +127,8 @@ class AiReviewControllerTest {
 
     @Test
     void aiReviewReturnsHighRiskForBugPr() throws Exception {
-        when(deepSeekClient.chat(any(), any())).thenReturn("any json");
-        when(deepSeekClient.parseReviewReport(any())).thenReturn(new ReviewReport(
+        when(modelClient.chat(any(), any())).thenReturn("any json");
+        when(modelClient.parseReviewReport(any())).thenReturn(new ReviewReport(
                 "本次 PR 存在严重空指针风险",
                 RiskLevel.HIGH,
                 List.of(new RiskItem("Service.java", "HIGH", "空指针风险",
@@ -136,7 +136,7 @@ class AiReviewControllerTest {
                 List.of(),
                 "deepseek-v4-flash"
         ));
-        when(deepSeekClient.getModel()).thenReturn("deepseek-v4-flash");
+        when(modelClient.getModel()).thenReturn("deepseek-v4-flash");
 
         mockMvc.perform(post("/api/reviews/ai-review")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -197,10 +197,10 @@ class AiReviewControllerTest {
 
     @Test
     void aiReviewReturns502WhenApiKeyMissing() throws Exception {
-        when(deepSeekClient.chat(any(), any()))
+        when(modelClient.chat(any(), any()))
                 .thenThrow(new DeepSeekApiException(
                         "未配置 DeepSeek API Key，请设置环境变量 DEEPSEEK_API_KEY"));
-        when(deepSeekClient.getModel()).thenReturn("deepseek-v4-flash");
+        when(modelClient.getModel()).thenReturn("deepseek-v4-flash");
 
         mockMvc.perform(post("/api/reviews/ai-review")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -236,11 +236,11 @@ class AiReviewControllerTest {
 
     @Test
     void aiReviewReturns502WhenParseFails() throws Exception {
-        when(deepSeekClient.chat(any(), any())).thenReturn("invalid response");
-        when(deepSeekClient.parseReviewReport(any()))
+        when(modelClient.chat(any(), any())).thenReturn("invalid response");
+        when(modelClient.parseReviewReport(any()))
                 .thenThrow(new DeepSeekApiException(
                         "DeepSeek 返回的内容不是合法的 JSON 格式，无法解析为 Review 报告"));
-        when(deepSeekClient.getModel()).thenReturn("deepseek-v4-flash");
+        when(modelClient.getModel()).thenReturn("deepseek-v4-flash");
 
         mockMvc.perform(post("/api/reviews/ai-review")
                         .contentType(MediaType.APPLICATION_JSON)

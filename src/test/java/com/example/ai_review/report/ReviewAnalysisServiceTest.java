@@ -8,7 +8,7 @@ import com.example.ai_review.diff.DiffReviewContext;
 import com.example.ai_review.diff.FileContext;
 import com.example.ai_review.diff.LocalDiffParser;
 import com.example.ai_review.github.*;
-import com.example.ai_review.review.DeepSeekClient;
+import com.example.ai_review.review.AiReviewModelClient;
 import com.example.ai_review.review.ReviewPromptBuilder;
 import com.example.ai_review.review.ReviewReport;
 import com.example.ai_review.review.RiskLevel;
@@ -41,7 +41,7 @@ class ReviewAnalysisServiceTest {
     private DiffContextBuilder diffContextBuilder;
 
     @Mock
-    private DeepSeekClient deepSeekClient;
+    private AiReviewModelClient aiModelClient;
 
     @Mock
     private ReviewPromptBuilder promptBuilder;
@@ -84,12 +84,12 @@ class ReviewAnalysisServiceTest {
                   "suggestions": []
                 }
                 """;
-        when(deepSeekClient.chat("system prompt", "user prompt")).thenReturn(rawJson);
+        when(aiModelClient.chat("system prompt", "user prompt")).thenReturn(rawJson);
 
         ReviewReport parsedReport = new ReviewReport(
                 "代码质量良好", RiskLevel.LOW, List.of(), List.of(), null);
-        when(deepSeekClient.parseReviewReport(rawJson)).thenReturn(parsedReport);
-        when(deepSeekClient.getModel()).thenReturn("deepseek-v4-flash");
+        when(aiModelClient.parseReviewReport(rawJson)).thenReturn(parsedReport);
+        when(aiModelClient.getModel()).thenReturn("deepseek-v4-flash");
         when(mergeRiskAnalyzer.analyze(List.of(file))).thenReturn(
                 new MergeRiskReport(RiskLevel.LOW, "未检测到明显合并风险", List.of()));
 
@@ -159,7 +159,7 @@ class ReviewAnalysisServiceTest {
                   "suggestions": []
                 }
                 """;
-        when(deepSeekClient.chat("s", "u")).thenReturn(rawJson);
+        when(aiModelClient.chat("s", "u")).thenReturn(rawJson);
 
         // parseReviewReport 返回 model=null，模拟 DeepSeek JSON 不含 model 字段
         ReviewReport parsedWithoutModel = new ReviewReport(
@@ -167,8 +167,8 @@ class ReviewAnalysisServiceTest {
                 List.of(new com.example.ai_review.review.RiskItem(
                         "A.java", "MEDIUM", "risk", "r", "s", null, null, null)),
                 List.of(), null);
-        when(deepSeekClient.parseReviewReport(rawJson)).thenReturn(parsedWithoutModel);
-        when(deepSeekClient.getModel()).thenReturn("deepseek-v4-flash");
+        when(aiModelClient.parseReviewReport(rawJson)).thenReturn(parsedWithoutModel);
+        when(aiModelClient.getModel()).thenReturn("deepseek-v4-flash");
         when(mergeRiskAnalyzer.analyze(List.of(file))).thenReturn(
                 new MergeRiskReport(RiskLevel.MEDIUM, "检测到合并风险", List.of()));
 
@@ -194,11 +194,11 @@ class ReviewAnalysisServiceTest {
 
         when(promptBuilder.buildSystemPrompt()).thenReturn("s");
         when(promptBuilder.buildUserPrompt(any())).thenReturn("u");
-        when(deepSeekClient.chat("s", "u")).thenReturn("""
+        when(aiModelClient.chat("s", "u")).thenReturn("""
                 {"summary":"OK","riskLevel":"LOW","risks":[],"suggestions":[]}""");
-        when(deepSeekClient.parseReviewReport(any()))
+        when(aiModelClient.parseReviewReport(any()))
                 .thenReturn(new ReviewReport("OK", RiskLevel.LOW, List.of(), List.of(), null));
-        when(deepSeekClient.getModel()).thenReturn("deepseek-v4-flash");
+        when(aiModelClient.getModel()).thenReturn("deepseek-v4-flash");
         when(mergeRiskAnalyzer.analyze(List.of(file))).thenReturn(
                 new MergeRiskReport(RiskLevel.LOW, "本地 diff 合并风险较低", List.of()));
 
@@ -217,7 +217,7 @@ class ReviewAnalysisServiceTest {
     @Test
     void deepModeUsesBatchReviewForLargeDiff() {
         ReviewAnalysisService batchService = new ReviewAnalysisService(
-                parser, fetcher, new DiffContextBuilder(), deepSeekClient, promptBuilder,
+                parser, fetcher, new DiffContextBuilder(), aiModelClient, promptBuilder,
                 localDiffParser, new MergeRiskAnalyzer());
 
         GitHubPullRequestRef ref = new GitHubPullRequestRef("o", "r", 2,
@@ -235,17 +235,17 @@ class ReviewAnalysisServiceTest {
         when(promptBuilder.buildSystemPrompt()).thenReturn("s");
         when(promptBuilder.buildBatchUserPrompt(any(), anyInt(), anyInt()))
                 .thenReturn("u1", "u2");
-        when(deepSeekClient.chat("s", "u1")).thenReturn("raw1");
-        when(deepSeekClient.chat("s", "u2")).thenReturn("raw2");
-        when(deepSeekClient.parseReviewReport("raw1"))
+        when(aiModelClient.chat("s", "u1")).thenReturn("raw1");
+        when(aiModelClient.chat("s", "u2")).thenReturn("raw2");
+        when(aiModelClient.parseReviewReport("raw1"))
                 .thenReturn(new ReviewReport("第一批未发现明显风险", RiskLevel.LOW, List.of(), List.of(), null));
-        when(deepSeekClient.parseReviewReport("raw2"))
+        when(aiModelClient.parseReviewReport("raw2"))
                 .thenReturn(new ReviewReport("第二批发现安全配置风险", RiskLevel.HIGH,
                         List.of(new com.example.ai_review.review.RiskItem(
                                 "src/main/java/SecurityConfig.java", "HIGH", "权限放开",
                                 "permitAll 可能扩大访问范围", "收紧权限", null, null, null)),
                         List.of(), null));
-        when(deepSeekClient.getModel()).thenReturn("deepseek-v4-flash");
+        when(aiModelClient.getModel()).thenReturn("deepseek-v4-flash");
 
         AnalyzePullRequestResponse response = batchService.analyze(
                 "https://github.com/o/r/pull/2", AnalysisMode.DEEP);
@@ -257,7 +257,7 @@ class ReviewAnalysisServiceTest {
         assertEquals(RiskLevel.HIGH, response.review().riskLevel());
         assertEquals(1, response.review().risks().size());
         assertTrue(response.review().summary().contains("共 2 批"));
-        verify(deepSeekClient, times(2)).chat(any(), any());
+        verify(aiModelClient, times(2)).chat(any(), any());
         verify(promptBuilder, times(2)).buildBatchUserPrompt(any(), anyInt(), anyInt());
     }
 }
