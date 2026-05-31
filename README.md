@@ -50,6 +50,7 @@
 - 已完成 Review Context 策略选择，支持 FAST 和 DEEP 两种模式。FAST 按风险权重优先保留关键文件上下文，适合快速、低 token 成本的日常自查；DEEP 使用更宽上下文预算，适合大 PR 或关键模块的更完整分析。
 - 已完成 DEEP 分批 Review 能力：当 DEEP 模式下 diff 规模较大时，系统会将变更拆成多个批次分别调用模型，再由后端合并风险点、建议和最高风险等级，降低超大 PR 因上下文限制漏掉关键信息的概率。
 - 已完成合并风险分析：基于 changed files 进行确定性规则判断，识别依赖/构建、配置、安全/权限、公开接口、CI/部署、测试缺失和大规模变更等合并前风险，辅助判断 PR 是否适合进入 main。
+- 已完成轻量 CLI 入口：同一个 Spring Boot Jar 支持 `--cli` 模式，可直接分析 GitHub PR 或从标准输入读取本地 diff，验证后端 Review 能力可脱离 Web 页面复用。
 
 ## 后续优化计划
 
@@ -296,6 +297,38 @@ http://localhost:8080
 5. 点击"开始分析"。
 6. 等待数秒后，页面展示 PR 信息、变更统计、AI 总结、风险等级、风险列表和 Review 建议。
 7. 如未配置 API Key，页面会展示后端返回的清晰错误信息。
+
+### CLI 使用流程
+
+CLI 入口复用同一套后端 Review 能力，适合本地脚本、服务器和 AI Coding 工作流。先打包：
+
+```bash
+mvn package
+```
+
+分析 GitHub PR：
+
+```bash
+java -jar target/Ai_Review-0.0.1-SNAPSHOT.jar --cli --pr=https://github.com/owner/repo/pull/123 --mode=FAST
+```
+
+提交前分析本地 diff：
+
+```bash
+git diff main...HEAD | java -jar target/Ai_Review-0.0.1-SNAPSHOT.jar --cli --diff-stdin --mode=FAST
+```
+
+分析 patch 文件：
+
+```bash
+java -jar target/Ai_Review-0.0.1-SNAPSHOT.jar --cli --diff-file=patch.diff --repository=my-repo --base=main --head=working-tree
+```
+
+说明：
+
+- `--mode=FAST` 适合日常快速自查；`--mode=DEEP` 适合较大 diff 或关键模块，但响应更慢、token 成本更高。
+- CLI 不提供命令行传入 API Key 或 GitHub Token 的参数，避免密钥进入 shell history；请使用环境变量、`.env` 或 Web Demo 临时输入。
+- CLI 模式会关闭 Web Server，只输出 Markdown 报告，便于后续接入 Git Hook、CI 或 AI Coding Skill。
 
 ## 当前接口
 
