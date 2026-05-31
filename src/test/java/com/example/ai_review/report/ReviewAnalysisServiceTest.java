@@ -49,6 +49,9 @@ class ReviewAnalysisServiceTest {
     @Mock
     private LocalDiffParser localDiffParser;
 
+    @Mock
+    private MergeRiskAnalyzer mergeRiskAnalyzer;
+
     @InjectMocks
     private ReviewAnalysisService service;
 
@@ -87,6 +90,8 @@ class ReviewAnalysisServiceTest {
                 "代码质量良好", RiskLevel.LOW, List.of(), List.of(), null);
         when(deepSeekClient.parseReviewReport(rawJson)).thenReturn(parsedReport);
         when(deepSeekClient.getModel()).thenReturn("deepseek-v4-flash");
+        when(mergeRiskAnalyzer.analyze(List.of(file))).thenReturn(
+                new MergeRiskReport(RiskLevel.LOW, "未检测到明显合并风险", List.of()));
 
         AnalyzePullRequestResponse response = service.analyze(
                 "https://github.com/owner/repo/pull/1");
@@ -105,6 +110,7 @@ class ReviewAnalysisServiceTest {
         assertEquals(7, response.totalChanges());
         assertFalse(response.truncated());
         assertNull(response.truncationReason());
+        assertEquals(RiskLevel.LOW, response.mergeRisk().riskLevel());
         assertEquals("代码质量良好", response.review().summary());
         assertEquals(RiskLevel.LOW, response.review().riskLevel());
     }
@@ -163,6 +169,8 @@ class ReviewAnalysisServiceTest {
                 List.of(), null);
         when(deepSeekClient.parseReviewReport(rawJson)).thenReturn(parsedWithoutModel);
         when(deepSeekClient.getModel()).thenReturn("deepseek-v4-flash");
+        when(mergeRiskAnalyzer.analyze(List.of(file))).thenReturn(
+                new MergeRiskReport(RiskLevel.MEDIUM, "检测到合并风险", List.of()));
 
         AnalyzePullRequestResponse response = service.analyze(
                 "https://github.com/o/r/pull/1");
@@ -191,6 +199,8 @@ class ReviewAnalysisServiceTest {
         when(deepSeekClient.parseReviewReport(any()))
                 .thenReturn(new ReviewReport("OK", RiskLevel.LOW, List.of(), List.of(), null));
         when(deepSeekClient.getModel()).thenReturn("deepseek-v4-flash");
+        when(mergeRiskAnalyzer.analyze(List.of(file))).thenReturn(
+                new MergeRiskReport(RiskLevel.LOW, "本地 diff 合并风险较低", List.of()));
 
         // Use all blank optional fields to verify defaults
         AnalyzePullRequestResponse response = service.analyzeDiff(
@@ -207,7 +217,8 @@ class ReviewAnalysisServiceTest {
     @Test
     void deepModeUsesBatchReviewForLargeDiff() {
         ReviewAnalysisService batchService = new ReviewAnalysisService(
-                parser, fetcher, new DiffContextBuilder(), deepSeekClient, promptBuilder, localDiffParser);
+                parser, fetcher, new DiffContextBuilder(), deepSeekClient, promptBuilder,
+                localDiffParser, new MergeRiskAnalyzer());
 
         GitHubPullRequestRef ref = new GitHubPullRequestRef("o", "r", 2,
                 "https://github.com/o/r/pull/2");
@@ -242,6 +253,7 @@ class ReviewAnalysisServiceTest {
         assertTrue(response.batchReview());
         assertEquals(2, response.reviewBatches());
         assertTrue(response.batchStrategy().contains("DEEP 分批 Review"));
+        assertEquals(RiskLevel.HIGH, response.mergeRisk().riskLevel());
         assertEquals(RiskLevel.HIGH, response.review().riskLevel());
         assertEquals(1, response.review().risks().size());
         assertTrue(response.review().summary().contains("共 2 批"));

@@ -84,6 +84,31 @@ class ReviewCommentFormatterTest {
     }
 
     @Test
+    void formatsMergeRiskReport() {
+        AnalyzePullRequestResponse response = new AnalyzePullRequestResponse(
+                "o", "r", 6, "Risk PR", "dev", "open",
+                "main", "feat", 2, 20, 3, 23, false, null,
+                com.example.ai_review.diff.AnalysisMode.FAST,
+                "FAST",
+                false,
+                1,
+                null,
+                new MergeRiskReport(RiskLevel.HIGH, "检测到合并风险",
+                        List.of(new MergeRiskItem("依赖/构建", "pom.xml", "HIGH",
+                                "依赖发生变更", "执行 mvn test"))),
+                new ReviewReport("OK", RiskLevel.LOW,
+                        List.of(), List.of(), "deepseek-v4-flash")
+        );
+
+        String md = formatter.format(response);
+
+        assertTrue(md.contains("合并风险"));
+        assertTrue(md.contains("依赖/构建"));
+        assertTrue(md.contains("pom.xml"));
+        assertTrue(md.contains("执行 mvn test"));
+    }
+
+    @Test
     void handlesNullFieldsGracefully() {
         AnalyzePullRequestResponse response = new AnalyzePullRequestResponse(
                 "o", "r", 4, "Title", null, null,

@@ -35,19 +35,22 @@ public class ReviewAnalysisService {
     private final DeepSeekClient deepSeekClient;
     private final ReviewPromptBuilder promptBuilder;
     private final LocalDiffParser localDiffParser;
+    private final MergeRiskAnalyzer mergeRiskAnalyzer;
 
     public ReviewAnalysisService(GitHubPullRequestUrlParser parser,
                                   GitHubPrFetcher fetcher,
                                   DiffContextBuilder diffContextBuilder,
                                   DeepSeekClient deepSeekClient,
                                   ReviewPromptBuilder promptBuilder,
-                                  LocalDiffParser localDiffParser) {
+                                  LocalDiffParser localDiffParser,
+                                  MergeRiskAnalyzer mergeRiskAnalyzer) {
         this.parser = parser;
         this.fetcher = fetcher;
         this.diffContextBuilder = diffContextBuilder;
         this.deepSeekClient = deepSeekClient;
         this.promptBuilder = promptBuilder;
         this.localDiffParser = localDiffParser;
+        this.mergeRiskAnalyzer = mergeRiskAnalyzer;
     }
 
     public AnalyzePullRequestResponse analyze(String prUrl) {
@@ -76,6 +79,7 @@ public class ReviewAnalysisService {
         DiffReviewContext diffContext = diffContextBuilder.build(buildRequest);
 
         ReviewExecutionResult reviewResult = review(buildRequest, diffContext);
+        MergeRiskReport mergeRisk = mergeRiskAnalyzer.analyze(fetchResult.changedFiles());
 
         return new AnalyzePullRequestResponse(
                 fetchResult.owner(),
@@ -97,6 +101,7 @@ public class ReviewAnalysisService {
                 reviewResult.batchReview(),
                 reviewResult.reviewBatches(),
                 reviewResult.batchStrategy(),
+                mergeRisk,
                 reviewResult.report()
         );
     }
@@ -116,6 +121,7 @@ public class ReviewAnalysisService {
         DiffReviewContext diffContext = diffContextBuilder.build(buildRequest);
 
         ReviewExecutionResult reviewResult = review(buildRequest, diffContext);
+        MergeRiskReport mergeRisk = mergeRiskAnalyzer.analyze(changedFiles);
 
         return new AnalyzePullRequestResponse(
                 "local", repo, 0, "Local Diff Review",
@@ -131,6 +137,7 @@ public class ReviewAnalysisService {
                 reviewResult.batchReview(),
                 reviewResult.reviewBatches(),
                 reviewResult.batchStrategy(),
+                mergeRisk,
                 reviewResult.report()
         );
     }

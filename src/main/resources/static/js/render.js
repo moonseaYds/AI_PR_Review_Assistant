@@ -101,6 +101,9 @@ const Render = (() => {
             '</div>'
         );
 
+        // Merge risk
+        html += renderMergeRisk(data.mergeRisk);
+
         // Risks
         html += '<div class="result-section">';
         html += '<div class="section-title">风险点（' + risks.length + '）</div>';
@@ -168,6 +171,41 @@ const Render = (() => {
 
         html += '</div>'; // .result-card
         container.innerHTML = html;
+    }
+
+    function renderMergeRisk(mergeRisk) {
+        if (!mergeRisk) return "";
+
+        var items = Array.isArray(mergeRisk.items) ? mergeRisk.items : [];
+        var level = mergeRisk.riskLevel || "LOW";
+        var html = '<div class="result-section">';
+        html += '<div class="section-title">合并风险（' + items.length + '）</div>';
+        html += '<p class="review-summary">' + escapeHTML(mergeRisk.summary || "无合并风险总结") + '</p>';
+        html += '<span class="risk-level ' + escapeHTML(level) + '">' + escapeHTML(level) + '</span>';
+
+        if (items.length === 0) {
+            html += '<div class="empty-state"><div>未检测到明显合并风险</div></div>';
+        } else {
+            html += '<ul class="risk-list merge-risk-list">';
+            for (const item of items) {
+                html += (
+                    '<li class="risk-item">' +
+                        '<div class="risk-header">' +
+                            '<span class="risk-level ' + escapeHTML(item.level || "LOW") + '">' +
+                                escapeHTML(item.level || "LOW") +
+                            '</span>' +
+                            '<span class="risk-title">' + escapeHTML(item.category || "合并风险") + '</span>' +
+                        '</div>' +
+                        '<div class="risk-file">' + escapeHTML(item.file || "-") + '</div>' +
+                        '<div class="risk-reason">' + escapeHTML(item.reason || "") + '</div>' +
+                        '<div class="risk-suggestion">&rarr; ' + escapeHTML(item.suggestion || "") + '</div>' +
+                    '</li>'
+                );
+            }
+            html += '</ul>';
+        }
+        html += '</div>';
+        return html;
     }
 
     function metaItem(label, value) {
