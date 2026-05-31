@@ -45,6 +45,7 @@
 - 已完成本地 Diff Review 能力，支持直接粘贴 `git diff` 输出进行 AI Review，无需 GitHub PR，不依赖 GitHub token。适合提交前的本地自查场景。
 - 已完成报告证据增强，风险点和建议可附带代码片段、示例修复和行号定位，提升 Review 报告的可操作性。后续 IDEA 插件可基于这些字段跳转到对应代码位置。
 - 已完成错误诊断与兜底策略：后端返回稳定错误码、建议处理方式和是否可重试；前端展示结构化错误信息。GitHub API 不可用时引导切换到本地 Diff Review。
+- 已完成模型 Provider 抽象：通过 `AiReviewModelClient` 接口让业务编排层不直接依赖 `DeepSeekClient`，当前默认实现仍为 DeepSeek，后续可插拔接入 OpenAI-compatible、Claude、Gemini 等模型。
 - 已完成 Review Context 策略选择，支持 FAST 和 DEEP 两种模式。FAST 按风险权重优先保留关键文件上下文，适合快速、低 token 成本的日常自查；DEEP 使用更宽上下文预算，适合大 PR 或关键模块的更完整分析。
 - 已完成 DEEP 分批 Review 能力：当 DEEP 模式下 diff 规模较大时，系统会将变更拆成多个批次分别调用模型，再由后端合并风险点、建议和最高风险等级，降低超大 PR 因上下文限制漏掉关键信息的概率。
 - 已完成合并风险分析：基于 changed files 进行确定性规则判断，识别依赖/构建、配置、安全/权限、公开接口、CI/部署、测试缺失和大规模变更等合并前风险，辅助判断 PR 是否适合进入 main。
@@ -57,7 +58,7 @@
 
 1. **风险定位增强**：在风险点和 Review 建议中补充代码片段、问题原因、修改建议和示例修复。未来 IDEA 插件可基于 `filePath + lineNumber + codeSnippet` 直接定位到代码。
 2. **错误诊断兜底**：为 DeepSeek API、GitHub token、GitHub API、网络连接、模型 JSON 解析失败等场景提供稳定错误码和下一步处理建议。GitHub API 不可用时，引导用户改用本地 Diff Review。
-3. **模型可替换设计**：当前选择 DeepSeek 是出于国内接入便利性、性价比和比赛复现成本考虑。后续会抽象模型客户端，支持 OpenAI-compatible 模型、Claude、Gemini 等。国外模型可优先直连官方 API，网络或账号受限时可通过合规 API 网关或代理转发接入，但真实密钥仍只保存在环境变量中。
+3. **模型可替换设计**（已完成 Provider 抽象）：当前选择 DeepSeek 是出于国内接入便利性、性价比和比赛复现成本考虑。已通过 `AiReviewModelClient` 接口完成模型 Provider 抽象，业务编排层不依赖具体模型实现。后续可按需新增 OpenAI-compatible、Claude、Gemini 等 Provider。国外模型可优先直连官方 API，网络或账号受限时可通过合规 API 网关或代理转发接入，但真实密钥仍只保存在环境变量中。
 4. **多端工具封装**：在本地 Diff Review 基础上优先扩展 CLI，例如 `git diff main...HEAD | ai-pr-review analyze-diff`；随后再考虑 AI Coding Skill、浏览器插件和 IDEA 插件。IDEA 插件会放在核心接口稳定之后实现，避免过早增加端侧复杂度。
 
 详细路线图见 `docs/DEVELOPMENT_PLAN.md`。

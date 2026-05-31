@@ -11,7 +11,7 @@ import com.example.ai_review.github.GitHubPrFetcher;
 import com.example.ai_review.github.GitHubPullRequestRef;
 import com.example.ai_review.github.GitHubPullRequestUrlParser;
 import com.example.ai_review.github.PrFetchResult;
-import com.example.ai_review.review.DeepSeekClient;
+import com.example.ai_review.review.AiReviewModelClient;
 import com.example.ai_review.review.ReviewPromptBuilder;
 import com.example.ai_review.review.ReviewReport;
 import com.example.ai_review.review.RiskItem;
@@ -32,7 +32,7 @@ public class ReviewAnalysisService {
     private final GitHubPullRequestUrlParser parser;
     private final GitHubPrFetcher fetcher;
     private final DiffContextBuilder diffContextBuilder;
-    private final DeepSeekClient deepSeekClient;
+    private final AiReviewModelClient modelClient;
     private final ReviewPromptBuilder promptBuilder;
     private final LocalDiffParser localDiffParser;
     private final MergeRiskAnalyzer mergeRiskAnalyzer;
@@ -40,14 +40,14 @@ public class ReviewAnalysisService {
     public ReviewAnalysisService(GitHubPullRequestUrlParser parser,
                                   GitHubPrFetcher fetcher,
                                   DiffContextBuilder diffContextBuilder,
-                                  DeepSeekClient deepSeekClient,
+                                  AiReviewModelClient modelClient,
                                   ReviewPromptBuilder promptBuilder,
                                   LocalDiffParser localDiffParser,
                                   MergeRiskAnalyzer mergeRiskAnalyzer) {
         this.parser = parser;
         this.fetcher = fetcher;
         this.diffContextBuilder = diffContextBuilder;
-        this.deepSeekClient = deepSeekClient;
+        this.modelClient = modelClient;
         this.promptBuilder = promptBuilder;
         this.localDiffParser = localDiffParser;
         this.mergeRiskAnalyzer = mergeRiskAnalyzer;
@@ -155,8 +155,8 @@ public class ReviewAnalysisService {
     private ReviewExecutionResult singleReview(DiffReviewContext diffContext) {
         String systemPrompt = promptBuilder.buildSystemPrompt();
         String userPrompt = promptBuilder.buildUserPrompt(diffContext);
-        String rawResponse = deepSeekClient.chat(systemPrompt, userPrompt);
-        ReviewReport parsedReport = deepSeekClient.parseReviewReport(rawResponse);
+        String rawResponse = modelClient.chat(systemPrompt, userPrompt);
+        ReviewReport parsedReport = modelClient.parseReviewReport(rawResponse);
         return new ReviewExecutionResult(withModel(parsedReport), false, 1, null);
     }
 
@@ -176,8 +176,8 @@ public class ReviewAnalysisService {
             );
             DiffReviewContext batchContext = diffContextBuilder.build(batchRequest);
             String userPrompt = promptBuilder.buildBatchUserPrompt(batchContext, i + 1, batches.size());
-            String rawResponse = deepSeekClient.chat(systemPrompt, userPrompt);
-            batchReports.add(deepSeekClient.parseReviewReport(rawResponse));
+            String rawResponse = modelClient.chat(systemPrompt, userPrompt);
+            batchReports.add(modelClient.parseReviewReport(rawResponse));
         }
 
         String strategy = "DEEP 分批 Review：将 diff 拆分为 " + batches.size()
@@ -239,7 +239,7 @@ public class ReviewAnalysisService {
         }
 
         summary.append(" 整体最高风险等级为 ").append(highestRisk).append("。");
-        return new ReviewReport(summary.toString(), highestRisk, risks, suggestions, deepSeekClient.getModel());
+        return new ReviewReport(summary.toString(), highestRisk, risks, suggestions, modelClient.getModel());
     }
 
     private ReviewReport withModel(ReviewReport report) {
@@ -248,7 +248,7 @@ public class ReviewAnalysisService {
                 report.riskLevel(),
                 report.risks(),
                 report.suggestions(),
-                deepSeekClient.getModel()
+                modelClient.getModel()
         );
     }
 

@@ -11,11 +11,11 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/reviews")
 public class AiReviewController {
 
-    private final DeepSeekClient deepSeekClient;
+    private final AiReviewModelClient modelClient;
     private final ReviewPromptBuilder promptBuilder;
 
-    public AiReviewController(DeepSeekClient deepSeekClient, ReviewPromptBuilder promptBuilder) {
-        this.deepSeekClient = deepSeekClient;
+    public AiReviewController(AiReviewModelClient modelClient, ReviewPromptBuilder promptBuilder) {
+        this.modelClient = modelClient;
         this.promptBuilder = promptBuilder;
     }
 
@@ -28,15 +28,15 @@ public class AiReviewController {
         String systemPrompt = promptBuilder.buildSystemPrompt();
         String userPrompt = promptBuilder.buildUserPrompt(request);
 
-        String rawResponse = deepSeekClient.chat(systemPrompt, userPrompt);
-        ReviewReport report = deepSeekClient.parseReviewReport(rawResponse);
+        String rawResponse = modelClient.chat(systemPrompt, userPrompt);
+        ReviewReport report = modelClient.parseReviewReport(rawResponse);
 
         return new ReviewReport(
                 report.summary(),
                 report.riskLevel(),
                 report.risks() != null ? report.risks() : java.util.List.of(),
                 report.suggestions() != null ? report.suggestions() : java.util.List.of(),
-                deepSeekClient.getModel()
+                modelClient.getModel()
         );
     }
 }
