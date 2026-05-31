@@ -1,6 +1,7 @@
 package com.example.ai_review.report;
 
 import com.example.ai_review.diff.AnalyzeDiffRequest;
+import com.example.ai_review.diff.AnalysisMode;
 import com.example.ai_review.diff.BuildDiffContextRequest;
 import com.example.ai_review.diff.DiffContextBuilder;
 import com.example.ai_review.diff.DiffReviewContext;
@@ -21,6 +22,9 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -198,5 +202,50 @@ class ReviewAnalysisServiceTest {
 
         // 验证 analyzeDiff 不调用 GitHub parser/fetcher
         verifyNoInteractions(parser, fetcher);
+    }
+
+    @Test
+    void deepModeUsesBatchReviewForLargeDiff() {
+        ReviewAnalysisService batchService = new ReviewAnalysisService(
+                parser, fetcher, new DiffContextBuilder(), deepSeekClient, promptBuilder, localDiffParser);
+
+        GitHubPullRequestRef ref = new GitHubPullRequestRef("o", "r", 2,
+                "https://github.com/o/r/pull/2");
+        when(parser.parse("https://github.com/o/r/pull/2")).thenReturn(ref);
+
+        List<ChangedFile> files = List.of(
+                new ChangedFile("src/main/java/AController.java", "modified", 100, 0, 100, "a".repeat(9000)),
+                new ChangedFile("src/main/java/BService.java", "modified", 100, 0, 100, "b".repeat(9000)),
+                new ChangedFile("src/main/java/SecurityConfig.java", "modified", 100, 0, 100, "c".repeat(9000))
+        );
+        when(fetcher.fetch(ref)).thenReturn(new PrFetchResult(
+                "o", "r", 2, "Large PR", "dev", "open", "main", "feat/batch", files));
+
+        when(promptBuilder.buildSystemPrompt()).thenReturn("s");
+        when(promptBuilder.buildBatchUserPrompt(any(), anyInt(), anyInt()))
+                .thenReturn("u1", "u2");
+        when(deepSeekClient.chat("s", "u1")).thenReturn("raw1");
+        when(deepSeekClient.chat("s", "u2")).thenReturn("raw2");
+        when(deepSeekClient.parseReviewReport("raw1"))
+                .thenReturn(new ReviewReport("第一批未发现明显风险", RiskLevel.LOW, List.of(), List.of(), null));
+        when(deepSeekClient.parseReviewReport("raw2"))
+                .thenReturn(new ReviewReport("第二批发现安全配置风险", RiskLevel.HIGH,
+                        List.of(new com.example.ai_review.review.RiskItem(
+                                "src/main/java/SecurityConfig.java", "HIGH", "权限放开",
+                                "permitAll 可能扩大访问范围", "收紧权限", null, null, null)),
+                        List.of(), null));
+        when(deepSeekClient.getModel()).thenReturn("deepseek-v4-flash");
+
+        AnalyzePullRequestResponse response = batchService.analyze(
+                "https://github.com/o/r/pull/2", AnalysisMode.DEEP);
+
+        assertTrue(response.batchReview());
+        assertEquals(2, response.reviewBatches());
+        assertTrue(response.batchStrategy().contains("DEEP 分批 Review"));
+        assertEquals(RiskLevel.HIGH, response.review().riskLevel());
+        assertEquals(1, response.review().risks().size());
+        assertTrue(response.review().summary().contains("共 2 批"));
+        verify(deepSeekClient, times(2)).chat(any(), any());
+        verify(promptBuilder, times(2)).buildBatchUserPrompt(any(), anyInt(), anyInt());
     }
 }

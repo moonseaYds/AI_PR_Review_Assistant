@@ -58,9 +58,13 @@ const Render = (() => {
                     metaItem("源分支", data.headBranch) +
                     metaItem("目标分支", data.baseBranch) +
                     metaItem("Context 模式", data.analysisMode || "FAST") +
+                    metaItem("分批 Review", data.batchReview ? (data.reviewBatches || 1) + " 批" : "否") +
                 '</div>' +
                 (data.contextStrategy ? (
                     '<div class="context-strategy">' + escapeHTML(data.contextStrategy) + '</div>'
+                ) : "") +
+                (data.batchStrategy ? (
+                    '<div class="context-strategy">' + escapeHTML(data.batchStrategy) + '</div>'
                 ) : "") +
             '</div>'
         );

@@ -113,4 +113,13 @@ public class ReviewPromptBuilder {
         sb.append("请基于以上 diff 内容，按照系统提示要求的 JSON 格式输出 Review 报告。");
         return sb.toString();
     }
+
+    public String buildBatchUserPrompt(DiffReviewContext context, int batchNumber, int totalBatches) {
+        String prompt = buildUserPrompt(context);
+        return prompt + "\n\n"
+                + "## 分批 Review 说明\n"
+                + "- 当前是 DEEP 模式下的第 " + batchNumber + " / " + totalBatches + " 批 diff。\n"
+                + "- 请只审查本批次中实际出现的代码，不要推断其他批次内容。\n"
+                + "- 如果本批次未发现明确风险，请返回 LOW，并在 summary 中说明本批次未发现明显风险。";
+    }
 }

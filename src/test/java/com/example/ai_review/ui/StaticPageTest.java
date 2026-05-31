@@ -245,6 +245,10 @@ class StaticPageTest {
                 "render.js should display context mode");
         assertTrue(body.contains("contextStrategy"),
                 "render.js should display context strategy");
+        assertTrue(body.contains("batchReview"),
+                "render.js should display batch review state");
+        assertTrue(body.contains("batchStrategy"),
+                "render.js should display batch review strategy");
         assertTrue(body.contains("Diff 已截断"),
                 "render.js should still display truncation status");
     }
