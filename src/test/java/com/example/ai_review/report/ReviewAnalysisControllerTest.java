@@ -23,6 +23,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -520,5 +521,68 @@ class ReviewAnalysisControllerTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("GITHUB_TOKEN_REQUIRED"))
                 .andExpect(jsonPath("$.retryable").value(false));
+    }
+
+    // --- 凭证安全边界测试 ---
+
+    @Test
+    void analyzeResponseDoesNotLeakCredentials() throws Exception {
+        when(analysisService.analyze(any(), any(), any())).thenReturn(
+                new AnalyzePullRequestResponse("o", "r", 1, "T", "a", "open", "main", "feat",
+                        1, 1, 0, 1, false, null,
+                        new ReviewReport("OK", RiskLevel.LOW, List.of(), List.of(), "m"))
+        );
+
+        String responseBody = mockMvc.perform(post("/api/reviews/analyze")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "prUrl": "https://github.com/o/r/pull/1",
+                                  "analysisMode": "FAST",
+                                  "credentials": {
+                                    "deepSeekApiKey": "runtime-ds-key",
+                                    "githubToken": "runtime-gh-token"
+                                  }
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertFalse(responseBody.contains("runtime-ds-key"),
+                "response must not leak runtime deepseek key");
+        assertFalse(responseBody.contains("runtime-gh-token"),
+                "response must not leak runtime github token");
+        assertFalse(responseBody.contains("deepSeekApiKey"),
+                "response must not contain credential field names");
+        assertFalse(responseBody.contains("githubToken"),
+                "response must not contain credential field names");
+    }
+
+    @Test
+    void analyzeDiffResponseDoesNotLeakCredentials() throws Exception {
+        when(analysisService.analyzeDiff(any())).thenReturn(
+                new AnalyzePullRequestResponse("local", "p", 0, "Local Diff Review", "local",
+                        "local", "main", "feat", 1, 1, 0, 1, false, null,
+                        new ReviewReport("OK", RiskLevel.LOW, List.of(), List.of(), "m"))
+        );
+
+        String responseBody = mockMvc.perform(post("/api/reviews/analyze-diff")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "diffText": "diff --git a/A.java b/A.java",
+                                  "analysisMode": "FAST",
+                                  "credentials": {
+                                    "deepSeekApiKey": "local-ds-key"
+                                  }
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        assertFalse(responseBody.contains("local-ds-key"),
+                "response must not leak runtime credentials");
+        assertFalse(responseBody.contains("deepSeekApiKey"),
+                "response must not contain credential field names");
     }
 }

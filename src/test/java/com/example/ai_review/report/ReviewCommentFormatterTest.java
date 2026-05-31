@@ -135,6 +135,10 @@ class ReviewCommentFormatterTest {
         assertFalse(md.contains("sk-"));
         assertFalse(md.contains("ghp_"));
         assertFalse(md.contains("Bearer"));
+        // 凭证字段名和占位值不应泄露
+        assertFalse(md.contains("deepSeekApiKey"));
+        assertFalse(md.contains("githubToken"));
+        assertFalse(md.contains("runtime-ds-key"));
     }
 
     @Test

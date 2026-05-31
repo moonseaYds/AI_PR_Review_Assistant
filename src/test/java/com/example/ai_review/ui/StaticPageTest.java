@@ -8,6 +8,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.forwardedUrl;
@@ -289,5 +290,45 @@ class StaticPageTest {
                 "render.js should contain merge risk label");
         assertTrue(body.contains("Diff 已截断"),
                 "render.js should still display truncation status");
+    }
+
+    // --- Demo 级能力覆盖 ---
+
+    @Test
+    void indexHtmlHasDualEntryModes() throws Exception {
+        byte[] bytes = mockMvc.perform(get("/index.html"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsByteArray();
+        String body = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+
+        assertTrue(body.contains("GitHub PR 链接") || body.contains("pr-url"),
+                "index.html should have GitHub PR URL entry");
+        assertTrue(body.contains("本地 Diff") || body.contains("diff-text"),
+                "index.html should have local diff entry");
+    }
+
+    @Test
+    void appJsDoesNotPersistCredentials() throws Exception {
+        byte[] bytes = mockMvc.perform(get("/js/app.js"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsByteArray();
+        String body = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+
+        assertFalse(body.contains("localStorage"),
+                "app.js must not use localStorage (no credential persistence)");
+        assertFalse(body.contains("sessionStorage"),
+                "app.js must not use sessionStorage (no credential persistence)");
+    }
+
+    @Test
+    void indexHtmlContainsToolMatrixOrLightweightPositioning() throws Exception {
+        byte[] bytes = mockMvc.perform(get("/index.html"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsByteArray();
+        String body = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+
+        assertTrue(body.contains("轻量 Review 工具") || body.contains("工具入口") ||
+                        body.contains("轻量") || body.contains("Demo"),
+                "index.html should position as lightweight tool");
     }
 }

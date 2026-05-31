@@ -1,5 +1,6 @@
 package com.example.ai_review.report;
 
+import com.example.ai_review.common.RuntimeCredentials;
 import com.example.ai_review.diff.AnalyzeDiffRequest;
 import com.example.ai_review.diff.AnalysisMode;
 import com.example.ai_review.diff.BuildDiffContextRequest;
@@ -14,6 +15,7 @@ import com.example.ai_review.review.ReviewReport;
 import com.example.ai_review.review.RiskLevel;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -260,5 +262,104 @@ class ReviewAnalysisServiceTest {
         assertTrue(response.review().summary().contains("共 2 批"));
         verify(aiModelClient, times(2)).chat(any(), any(), any());
         verify(promptBuilder, times(2)).buildBatchUserPrompt(any(), anyInt(), anyInt());
+    }
+
+    // --- 架构级测试 ---
+
+    @Test
+    void endToEndOrchestrationPassesRuntimeCredentials() {
+        RuntimeCredentials creds = new RuntimeCredentials("runtime-ds-key", "runtime-gh-token");
+        GitHubPullRequestRef ref = new GitHubPullRequestRef("o", "r", 1,
+                "https://github.com/o/r/pull/1");
+        when(parser.parse("https://github.com/o/r/pull/1")).thenReturn(ref);
+
+        ChangedFile file = new ChangedFile("A.java", "modified", 1, 0, 1, "@@ diff");
+        PrFetchResult fetchResult = new PrFetchResult("o", "r", 1,
+                "Title", "author", "open", "main", "feat", List.of(file));
+        when(fetcher.fetch(eq(ref), any(RuntimeCredentials.class))).thenReturn(fetchResult);
+
+        DiffReviewContext diffContext = new DiffReviewContext(
+                "o", "r", 1, "Title", 1, 1, 0, 1, false, null,
+                AnalysisMode.FAST, null, List.of());
+        when(diffContextBuilder.build(any())).thenReturn(diffContext);
+
+        when(promptBuilder.buildSystemPrompt()).thenReturn("s");
+        when(promptBuilder.buildUserPrompt(any())).thenReturn("u");
+        when(aiModelClient.chat(eq("s"), eq("u"), any(RuntimeCredentials.class)))
+                .thenReturn("{\"summary\":\"OK\",\"riskLevel\":\"LOW\",\"risks\":[],\"suggestions\":[]}");
+        when(aiModelClient.parseReviewReport(any())).thenReturn(
+                new ReviewReport("OK", RiskLevel.LOW, List.of(), List.of(), null));
+        when(aiModelClient.getModel()).thenReturn("deepseek-v4-flash");
+
+        service.analyze("https://github.com/o/r/pull/1", AnalysisMode.FAST, creds);
+
+        // 验证 credentials 传递到 fetcher
+        ArgumentCaptor<RuntimeCredentials> fetcherCaptor = ArgumentCaptor.forClass(RuntimeCredentials.class);
+        verify(fetcher).fetch(eq(ref), fetcherCaptor.capture());
+        assertEquals("runtime-gh-token", fetcherCaptor.getValue().normalizedGitHubToken());
+
+        // 验证 credentials 传递到 modelClient
+        ArgumentCaptor<RuntimeCredentials> modelCaptor = ArgumentCaptor.forClass(RuntimeCredentials.class);
+        verify(aiModelClient).chat(eq("s"), eq("u"), modelCaptor.capture());
+        assertEquals("runtime-ds-key", modelCaptor.getValue().normalizedDeepSeekApiKey());
+    }
+
+    @Test
+    void localDiffReviewDoesNotDependOnGitHub() {
+        String diffText = "diff --git a/A.java b/A.java\n--- a/A.java\n+++ b/A.java\n@@ -1 +1 @@\n-old\n+new";
+        ChangedFile file = new ChangedFile("A.java", "modified", 1, 1, 2, diffText);
+        when(localDiffParser.parse(diffText)).thenReturn(List.of(file));
+
+        DiffReviewContext diffContext = new DiffReviewContext(
+                "local", "local-project", 0, "Local Diff Review", 1, 1, 1, 2,
+                false, null, AnalysisMode.FAST, null,
+                List.of(new FileContext("A.java", "modified", 1, 1, 2, diffText, false)));
+        when(diffContextBuilder.build(any())).thenReturn(diffContext);
+
+        when(promptBuilder.buildSystemPrompt()).thenReturn("s");
+        when(promptBuilder.buildUserPrompt(any())).thenReturn("u");
+        when(aiModelClient.chat(any(), any(), any()))
+                .thenReturn("{\"summary\":\"OK\",\"riskLevel\":\"LOW\",\"risks\":[],\"suggestions\":[]}");
+        when(aiModelClient.parseReviewReport(any())).thenReturn(
+                new ReviewReport("OK", RiskLevel.LOW, List.of(), List.of(), null));
+        when(aiModelClient.getModel()).thenReturn("deepseek-v4-flash");
+        AnalyzePullRequestResponse response = service.analyzeDiff(
+                new AnalyzeDiffRequest("proj", "main", "feat",
+                        AnalysisMode.FAST, RuntimeCredentials.empty(), diffText));
+
+
+        // 不调用 GitHub
+        verifyNoInteractions(parser, fetcher);
+        assertEquals("local", response.owner());
+        assertEquals(0, response.pullNumber());
+    }
+
+    @Test
+    void localDiffReviewPassesCredentialsToModel() {
+        String diffText = "diff --git a/A.java b/A.java\n--- a/A.java\n+++ b/A.java\n@@ -1 +1 @@\n-old\n+new";
+        RuntimeCredentials creds = new RuntimeCredentials("local-ds-key", null);
+        ChangedFile file = new ChangedFile("A.java", "modified", 1, 1, 2, diffText);
+        when(localDiffParser.parse(diffText)).thenReturn(List.of(file));
+
+        DiffReviewContext diffContext = new DiffReviewContext(
+                "local", "local-project", 0, "Local Diff Review", 1, 1, 1, 2,
+                false, null, AnalysisMode.FAST, null,
+                List.of(new FileContext("A.java", "modified", 1, 1, 2, diffText, false)));
+        when(diffContextBuilder.build(any())).thenReturn(diffContext);
+
+        when(promptBuilder.buildSystemPrompt()).thenReturn("s");
+        when(promptBuilder.buildUserPrompt(any())).thenReturn("u");
+        when(aiModelClient.chat(any(), any(), any(RuntimeCredentials.class)))
+                .thenReturn("{\"summary\":\"OK\",\"riskLevel\":\"LOW\",\"risks\":[],\"suggestions\":[]}");
+        when(aiModelClient.parseReviewReport(any())).thenReturn(
+                new ReviewReport("OK", RiskLevel.LOW, List.of(), List.of(), null));
+        when(aiModelClient.getModel()).thenReturn("deepseek-v4-flash");
+        service.analyzeDiff(new AnalyzeDiffRequest("proj", "main", "feat",
+                AnalysisMode.FAST, creds, diffText));
+
+
+        ArgumentCaptor<RuntimeCredentials> captor = ArgumentCaptor.forClass(RuntimeCredentials.class);
+        verify(aiModelClient).chat(any(), any(), captor.capture());
+        assertEquals("local-ds-key", captor.getValue().normalizedDeepSeekApiKey());
     }
 }
