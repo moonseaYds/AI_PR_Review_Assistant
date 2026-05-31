@@ -105,6 +105,23 @@ class ReviewPromptBuilderTest {
         assertTrue(prompt.contains("48000"));
     }
 
+    @Test
+    void batchUserPromptContainsBatchScope() {
+        DiffReviewContext context = new DiffReviewContext(
+                "o", "r", 1, "Deep PR", 1, 1, 0, 1,
+                false, null,
+                AnalysisMode.DEEP,
+                "DEEP batch",
+                List.of(new FileContext("App.java", "modified", 1, 0, 1,
+                        "+change", false))
+        );
+
+        String prompt = builder.buildBatchUserPrompt(context, 2, 5);
+
+        assertTrue(prompt.contains("第 2 / 5 批"));
+        assertTrue(prompt.contains("只审查本批次"));
+        assertTrue(prompt.contains("App.java"));
+    }
 
     @Test
     void userPromptContainsMultipleFiles() {

@@ -46,6 +46,7 @@
 - 已完成报告证据增强，风险点和建议可附带代码片段、示例修复和行号定位，提升 Review 报告的可操作性。后续 IDEA 插件可基于这些字段跳转到对应代码位置。
 - 已完成错误诊断与兜底策略：后端返回稳定错误码、建议处理方式和是否可重试；前端展示结构化错误信息。GitHub API 不可用时引导切换到本地 Diff Review。
 - 已完成 Review Context 策略选择，支持 FAST 和 DEEP 两种模式。FAST 按风险权重优先保留关键文件上下文，适合快速、低 token 成本的日常自查；DEEP 使用更宽上下文预算，适合大 PR 或关键模块的更完整分析。
+- 已完成 DEEP 分批 Review 能力：当 DEEP 模式下 diff 规模较大时，系统会将变更拆成多个批次分别调用模型，再由后端合并风险点、建议和最高风险等级，降低超大 PR 因上下文限制漏掉关键信息的概率。
 
 ## 后续优化计划
 
@@ -55,10 +56,9 @@
 
 1. **风险定位增强**：在风险点和 Review 建议中补充代码片段、问题原因、修改建议和示例修复。未来 IDEA 插件可基于 `filePath + lineNumber + codeSnippet` 直接定位到代码。
 2. **错误诊断兜底**：为 DeepSeek API、GitHub token、GitHub API、网络连接、模型 JSON 解析失败等场景提供稳定错误码和下一步处理建议。GitHub API 不可用时，引导用户改用本地 Diff Review。
-3. **分批 Diff Review**：当前 DEEP 模式先通过更大上下文预算提升覆盖面，后续可升级为真正的分批模型调用与聚合报告，以解决超大 PR 的上下文上限问题。该模式会更慢、消耗更多 token，但能降低关键信息缺失概率。
-4. **合并风险分析**：在报告中增加合并风险维度，例如依赖变更、配置变更、公共接口变更、测试缺失等。后续 CLI 或 CI 模式可结合 `mvn test`、GitHub Actions 状态判断合并后主分支是否存在运行风险。
-5. **模型可替换设计**：当前选择 DeepSeek 是出于国内接入便利性、性价比和比赛复现成本考虑。后续会抽象模型客户端，支持 OpenAI-compatible 模型、Claude、Gemini 等。国外模型可优先直连官方 API，网络或账号受限时可通过合规 API 网关或代理转发接入，但真实密钥仍只保存在环境变量中。
-6. **多端工具封装**：在本地 Diff Review 基础上优先扩展 CLI，例如 `git diff main...HEAD | ai-pr-review analyze-diff`；随后再考虑 AI Coding Skill、浏览器插件和 IDEA 插件。IDEA 插件会放在核心接口稳定之后实现，避免过早增加端侧复杂度。
+3. **合并风险分析**：在报告中增加合并风险维度，例如依赖变更、配置变更、公共接口变更、测试缺失等。后续 CLI 或 CI 模式可结合 `mvn test`、GitHub Actions 状态判断合并后主分支是否存在运行风险。
+4. **模型可替换设计**：当前选择 DeepSeek 是出于国内接入便利性、性价比和比赛复现成本考虑。后续会抽象模型客户端，支持 OpenAI-compatible 模型、Claude、Gemini 等。国外模型可优先直连官方 API，网络或账号受限时可通过合规 API 网关或代理转发接入，但真实密钥仍只保存在环境变量中。
+5. **多端工具封装**：在本地 Diff Review 基础上优先扩展 CLI，例如 `git diff main...HEAD | ai-pr-review analyze-diff`；随后再考虑 AI Coding Skill、浏览器插件和 IDEA 插件。IDEA 插件会放在核心接口稳定之后实现，避免过早增加端侧复杂度。
 
 详细路线图见 `docs/DEVELOPMENT_PLAN.md`。
 
@@ -384,9 +384,9 @@ Content-Type: application/json
 | 模式 | 当前实现 | 适用场景 | 取舍 |
 |------|----------|----------|------|
 | `FAST` | 按风险权重优先选择上下文，单文件 4000 字符，总 patch 16000 字符 | 日常提交前自查、小中型 PR、Demo 快速体验 | 响应更快、token 成本更低，但超大 PR 可能丢失低风险文件细节 |
-| `DEEP` | 使用更宽上下文预算，单文件 8000 字符，总 patch 48000 字符 | 大 PR、配置/权限/依赖等关键模块变更 | 覆盖更完整，但响应更慢、token 消耗更高 |
+| `DEEP` | 使用更宽上下文预算；当 diff 过大时分批调用模型并聚合报告 | 大 PR、配置/权限/依赖等关键模块变更 | 覆盖更完整，能缓解上下文超限，但响应更慢、token 消耗更高 |
 
-上述字符限制用于模拟和控制模型上下文窗口约束：真实模型存在 token 上限，不能无限塞入完整 diff。应用层主动做预算分配，能让系统在大 PR 下仍保持可预测的响应速度和成本。后续真正的分批分析会在 `feature/batch-diff-review` 中将超大 diff 拆成多次模型调用并聚合结果。
+上述字符限制用于模拟和控制模型上下文窗口约束：真实模型存在 token 上限，不能无限塞入完整 diff。应用层主动做预算分配，能让系统在大 PR 下仍保持可预测的响应速度和成本。DEEP 分批 Review 会将大 diff 拆成多个批次分别审查，再合并风险点、建议和最高风险等级。
 
 请求示例（小 diff）：
 
@@ -498,6 +498,7 @@ changedFiles 为空时返回 400：
 
 - FAST 模式：单文件 patch excerpt 最大 **4000** 字符，总 patch excerpt 最大 **16000** 字符。
 - DEEP 模式：单文件 patch excerpt 最大 **8000** 字符，总 patch excerpt 最大 **48000** 字符。
+- DEEP 分批 Review：每批目标约 **16000** 字符，当前最多 **6** 批。超过批次数上限时，最后一批仍可能触发 DEEP 模式自身的上下文截断。
 - patch 为 `null` 或空白时返回占位说明文本。
 - FAST 会优先保留高风险文件和 patch，例如 `controller`、`service`、`security`、`auth`、`config`、`application.*`、异常处理、外部请求、依赖文件、敏感字段、权限相关代码等。
 - 输出的 `fileContexts` 仍保持原始文件列表顺序，便于用户对照 GitHub PR 文件顺序查看。
@@ -635,6 +636,8 @@ Content-Type: application/json
 
 `analysisMode` 可选，默认为 `FAST`。如果选择 `DEEP`，系统会使用更宽的上下文预算分析同一个 PR。
 
+当 `analysisMode` 为 `DEEP` 且 diff 规模较大时，接口会启用分批 Review。响应中的 `batchReview`、`reviewBatches` 和 `batchStrategy` 会说明是否触发分批、实际批次数和聚合策略。
+
 成功响应示例：
 
 ```json
@@ -655,9 +658,31 @@ Content-Type: application/json
   "truncationReason": null,
   "analysisMode": "FAST",
   "contextStrategy": "FAST 模式：按风险权重优先保留关键文件上下文，单文件限制 4000 字符，总限制 16000 字符",
+  "batchReview": false,
+  "reviewBatches": 1,
+  "batchStrategy": null,
   "review": {
     "summary": "本次 PR 修复了登录模块的空指针问题，代码改动范围小、逻辑清晰。",
     "riskLevel": "LOW",
+    "risks": [],
+    "suggestions": [],
+    "model": "deepseek-v4-flash"
+  }
+}
+```
+
+DEEP 分批响应示例：
+
+```json
+{
+  "analysisMode": "DEEP",
+  "contextStrategy": "DEEP 模式：使用更宽上下文预算模拟分批分析覆盖面，单文件限制 8000 字符，总限制 48000 字符",
+  "batchReview": true,
+  "reviewBatches": 3,
+  "batchStrategy": "DEEP 分批 Review：将 diff 拆分为 3 批分别调用模型，再由后端合并风险点、建议和最高风险等级；每批目标约 16000 字符，最多 6 批",
+  "review": {
+    "summary": "DEEP 分批分析完成，共 3 批。批次 1：... 批次 2：... 批次 3：... 整体最高风险等级为 HIGH。",
+    "riskLevel": "HIGH",
     "risks": [],
     "suggestions": [],
     "model": "deepseek-v4-flash"
@@ -698,7 +723,7 @@ PR 无变更文件返回 400：
 说明：
 
 - 该接口一次性完成从 PR 链接到 AI Review 报告的完整流程。
-- 响应同时包含 PR 元信息（owner、repo、title、author、state、分支）、变更统计、Review Context 模式和截断信息。
+- 响应同时包含 PR 元信息（owner、repo、title、author、state、分支）、变更统计、Review Context 模式、分批状态和截断信息。
 - 不返回完整 patch 内容，避免响应过大。
 - 所有分段接口（`parse-pr-url`、`fetch-pr`、`build-diff-context`、`ai-review`）仍可单独调用。
 
@@ -725,7 +750,7 @@ Content-Type: application/json
 
 成功响应结构与 `/api/reviews/analyze` 一致（复用 `AnalyzePullRequestResponse`），其中 `owner` 固定为 `local`，`pullNumber` 固定为 `0`，`title` 固定为 `Local Diff Review`。
 
-本地 Diff Review 同样支持 `analysisMode`。日常提交前推荐 `FAST`，关键模块或大范围改动可使用 `DEEP`。
+本地 Diff Review 同样支持 `analysisMode`。日常提交前推荐 `FAST`，关键模块或大范围改动可使用 `DEEP`。如果本地 diff 较大，DEEP 模式也会启用分批 Review，适合在提交 GitHub 前先反复自查。
 
 空 diff 返回 400：
 

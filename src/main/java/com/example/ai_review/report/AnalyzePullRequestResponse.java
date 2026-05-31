@@ -20,8 +20,33 @@ public record AnalyzePullRequestResponse(
         String truncationReason,
         AnalysisMode analysisMode,
         String contextStrategy,
+        boolean batchReview,
+        int reviewBatches,
+        String batchStrategy,
         ReviewReport review
 ) {
+    public AnalyzePullRequestResponse(String owner,
+                                      String repo,
+                                      int pullNumber,
+                                      String title,
+                                      String author,
+                                      String state,
+                                      String baseBranch,
+                                      String headBranch,
+                                      int totalFiles,
+                                      int totalAdditions,
+                                      int totalDeletions,
+                                      int totalChanges,
+                                      boolean truncated,
+                                      String truncationReason,
+                                      AnalysisMode analysisMode,
+                                      String contextStrategy,
+                                      ReviewReport review) {
+        this(owner, repo, pullNumber, title, author, state, baseBranch, headBranch, totalFiles,
+                totalAdditions, totalDeletions, totalChanges, truncated, truncationReason,
+                analysisMode, contextStrategy, false, 1, null, review);
+    }
+
     public AnalyzePullRequestResponse(String owner,
                                       String repo,
                                       int pullNumber,
@@ -39,6 +64,7 @@ public record AnalyzePullRequestResponse(
                                       ReviewReport review) {
         this(owner, repo, pullNumber, title, author, state, baseBranch, headBranch, totalFiles,
                 totalAdditions, totalDeletions, totalChanges, truncated, truncationReason,
-                AnalysisMode.FAST, "FAST 模式：优先保留高风险文件上下文", review);
+                AnalysisMode.FAST, "FAST 模式：优先保留高风险文件上下文",
+                false, 1, null, review);
     }
 }

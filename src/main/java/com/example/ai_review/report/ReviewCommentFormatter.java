@@ -27,6 +27,10 @@ public class ReviewCommentFormatter {
             md.append("- ⚠️ Diff 已截断：").append(escape(
                     response.truncationReason() != null ? response.truncationReason() : "内容过长")).append("\n");
         }
+        if (response.batchReview()) {
+            md.append("- Review 模式：DEEP 分批分析，共 ")
+                    .append(response.reviewBatches()).append(" 批\n");
+        }
 
         md.append("\n");
 

@@ -81,6 +81,8 @@ class ReviewAnalysisControllerTest {
                 .andExpect(jsonPath("$.truncationReason").doesNotExist())
                 .andExpect(jsonPath("$.analysisMode").value("FAST"))
                 .andExpect(jsonPath("$.contextStrategy", containsString("FAST")))
+                .andExpect(jsonPath("$.batchReview").value(false))
+                .andExpect(jsonPath("$.reviewBatches").value(1))
                 .andExpect(jsonPath("$.review.summary").value("代码质量良好"))
                 .andExpect(jsonPath("$.review.riskLevel").value("LOW"))
                 .andExpect(jsonPath("$.review.risks").isEmpty());
@@ -108,6 +110,7 @@ class ReviewAnalysisControllerTest {
                 .andExpect(jsonPath("$.analysisMode").value("DEEP"))
                 .andExpect(jsonPath("$.contextStrategy", containsString("8000")))
                 .andExpect(jsonPath("$.contextStrategy", containsString("48000")))
+                .andExpect(jsonPath("$.batchReview").value(false))
                 .andExpect(jsonPath("$.review.summary").value("深度分析完成"));
 
         verify(analysisService).analyze(any(), eq(AnalysisMode.DEEP));
