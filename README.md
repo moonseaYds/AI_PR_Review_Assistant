@@ -62,7 +62,7 @@
 3. **模型可替换设计**（已完成 Provider 抽象）：当前选择 DeepSeek 是出于国内接入便利性、性价比和比赛复现成本考虑。已通过 `AiReviewModelClient` 接口完成模型 Provider 抽象，业务编排层不依赖具体模型实现。后续可按需新增 OpenAI-compatible、Claude、Gemini 等 Provider。国外模型可优先直连官方 API，网络或账号受限时可通过合规 API 网关或代理转发接入，但真实密钥仍只保存在环境变量中。
 4. **多端工具封装**：在本地 Diff Review 基础上优先扩展 CLI，例如 `git diff main...HEAD | ai-pr-review analyze-diff`；随后再考虑 AI Coding Skill、浏览器插件和 IDEA 插件。IDEA 插件会放在核心接口稳定之后实现，避免过早增加端侧复杂度。
 
-详细路线图见 `docs/DEVELOPMENT_PLAN.md`。
+详细路线图已整合在本文的“后续优化计划”和“后续扩展方向”中。
 
 ## 技术选型
 
@@ -934,13 +934,11 @@ analysis 缺失返回 400：
 
 ## Demo 视频
 
-Demo 视频将在核心功能完成后录制，要求包含语音讲解、主要功能演示和效果展示。
+Demo 视频已上传，包含语音讲解、主要功能演示和效果展示。
 
-视频链接占位：
+视频链接：
 
-```text
-待补充
-```
+[AI PR Review Assistant 作品演示 - Bilibili](https://www.bilibili.com/video/BV1mLVS6pEFb/?vd_source=23f18414ce426ca920d413ee5719cb9b)
 
 ## 后续扩展方向
 
