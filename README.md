@@ -1,36 +1,76 @@
 # AI PR Review Assistant
 
-## 项目简介
+> 暑期实习比赛题目三：AI PR Review 助手。
+> 一个面向开发者提交、创建 PR、合并前检查场景的轻量 AI Review 工具，核心目标是把 AI Review 嵌入真实开发工作流，而不是做成重型代码管理后台。
 
-本项目选择暑期实习比赛题目三：AI PR Review 助手，定位为面向开发者工作流的轻量 AI PR Review 工具，而非一个网站平台。
+## Demo 视频
 
-作品面向开发者在 Pull Request 评审中的真实需求，目标是通过 AI 辅助分析提升代码评审效率与质量。核心能力为：用户输入 GitHub PR 链接后，系统获取 PR 变更内容，整理 diff 上下文，并调用 DeepSeek API 生成 PR 变更总结、风险代码识别和 Review 建议。
+Demo 视频已上传，包含语音讲解、GitHub PR Review、本地 Diff Review、运行时凭证、上下文策略和工具化定位说明：
 
-与“功能大而全”的评审后台不同，本项目优先服务开发者提交、创建 PR、合并 PR 前的即时检查场景。历史记录、团队空间、模型模式面板等功能后续可扩展，当前阶段更关注低安装成本、低环境依赖和可嵌入开发流程的工具体验，避免为了展示功能而引入过重的平台化设计。
+[AI PR Review Assistant 作品演示 - Bilibili](https://www.bilibili.com/video/BV1mLVS6pEFb/?vd_source=23f18414ce426ca920d413ee5719cb9b)
 
-### 多端工具矩阵
+## 项目定位
 
-当前 Web 页面是 Demo 入口，但不是唯一产品形态。同一套后端 Review 能力（`/api/reviews/analyze` 与 `/api/reviews/analyze-diff`）可服务于多种入口：
+本项目选择的是“轻量工具”路线：用户输入 GitHub PR 链接或本地 `git diff`，系统自动获取或解析代码变更，构建可控的 diff 上下文，并调用 AI 模型生成结构化 Review 报告。
+
+与偏前端展示型、后台管理型作品不同，本项目更关注开发者真实工作流中的三个时间点：
+
+| 场景 | 典型问题 | 本项目的处理方式 |
+|------|----------|------------------|
+| 提交前 | 本地改完代码，还没创建 PR，想先自查风险 | 支持粘贴 `git diff` 或通过 CLI 读取 stdin |
+| PR 中 | Reviewer 需要快速理解变更和风险点 | 支持 GitHub PR URL 分析，生成总结、风险、建议、代码片段 |
+| 合并前 | 担心依赖、配置、安全、接口变更影响 main | 提供合并风险分析、分批 Review 和建议验证命令 |
+
+Web 页面只是当前比赛阶段最容易体验和录制 Demo 的入口；真正的核心是后端 Review 链路。这个链路已经被 Web、API、CLI 复用，后续可继续接入 IDE 插件、浏览器插件、Git Hook、GitHub Actions 或 AI Coding Skill。
+
+## 评委快速看点
+
+| 看点 | 说明 |
+|------|------|
+| **完整 PR Review 链路** | GitHub PR 解析、PR 信息获取、Diff 上下文构建、AI Review、报告展示、PR 评论发布已串通 |
+| **提交前本地 Diff Review** | 不必先提交 GitHub，开发者可以在本地反复 Review、修复，再创建 PR |
+| **轻量 CLI 入口** | 同一个 Spring Boot Jar 支持 `--cli`，可被脚本、CI、Git Hook、AI Coding 工具调用 |
+| **可控上下文策略** | FAST 模式优先速度和 token 成本，DEEP 模式支持更大上下文和分批 Review |
+| **报告可定位、可执行** | 风险点包含文件、行号、代码片段、原因、建议和示例修复 |
+| **后端工程完整性** | 全局异常、错误码、运行时凭证、模型 Provider 抽象、合并风险分析、150 个测试用例 |
+| **低环境成本** | 无数据库、无 Redis、无复杂前端构建；JDK + Maven 即可运行和验证 |
+
+## 个人能力体现
+
+这个作品的重点不是炫 UI，而是体现一个 Java 后端开发实习生在真实工程场景中的判断和落地能力：
+
+- **业务抽象能力**：把“AI PR Review”拆成 PR 获取、Diff 解析、上下文选择、模型调用、报告编排、评论发布、多入口复用等清晰模块。
+- **后端工程能力**：使用 Java 17 + Spring Boot 构建 REST API，设计 DTO、Service 编排、异常处理、错误诊断和测试边界。
+- **AI 工程化能力**：不是简单把 diff 丢给模型，而是控制上下文预算、区分 FAST/DEEP 模式、处理模型 JSON 输出、支持模型 Provider 可替换。
+- **产品取舍能力**：主动避免为了“看起来功能多”而引入数据库、登录后台和复杂前端，把精力放在开发者提交前、PR 中、合并前的高频场景。
+- **安全意识**：`.env` 不提交，运行时凭证不持久化，不回显到响应或评论，CLI 不支持命令行传 key，避免进入 shell history。
+- **持续交付意识**：项目通过小粒度分支和 PR 迭代，保留持续 commit / PR 记录，而不是最后一次性导入代码。
+
+## 当前能力矩阵
+
+同一套后端 Review 能力（`/api/reviews/analyze` 与 `/api/reviews/analyze-diff`）已经支持或可扩展到多种入口：
 
 | 入口 | 形态 | 说明 |
 |------|------|------|
-| **Web Demo** | 静态页面（本轮已完成） | 评委和用户无需安装额外工具即可体验完整链路 |
-| **IDE 插件** | IntelliJ IDEA 插件 | 开发者在看代码或提交 PR 前触发 Review |
-| **浏览器插件** | Chrome/Edge 扩展 | 在 GitHub PR 页面一键分析当前 PR |
-| **CLI/脚本** | 命令行工具 | 输入 PR URL 即可获取报告，适合 CI 和自动化脚本 |
-| **CI Bot** | GitHub Actions / Webhook | PR 流程中自动生成 Review 报告或评论 |
-| **AI Coding Skill** | Codex / Claude Code Skill | 在 AI Coding 提交、创建 PR 或合并前自动触发 Review |
+| **Web Demo** | 已完成 | 评委和用户无需额外安装前端工程即可体验完整链路 |
+| **REST API** | 已完成 | 为 Web、CLI、未来插件提供统一后端能力 |
+| **CLI/脚本** | 已完成第一版 | 支持 PR URL、本地 diff stdin、patch 文件输入 |
+| **GitHub PR Comment** | 已完成 | 将 Review 结果发布回 PR 协作现场 |
+| **IDE 插件** | 规划中 | 基于文件路径、行号、代码片段定位到 IDE |
+| **浏览器插件** | 规划中 | 在 GitHub PR 页面读取当前 URL，一键分析 |
+| **CI Bot / Git Hook** | 规划中 | 在合并前自动触发 Review 和风险拦截 |
+| **AI Coding Skill** | 规划中 | 在 AI 生成代码后、提交前自动调用本工具 |
 
-各入口只负责收集 PR URL 和展示报告，核心分析逻辑统一复用后端 API，避免重复实现。
+## 核心功能
 
-后续扩展优先级不是把 Web 页面做成复杂平台，而是让工具更贴近真实开发链路：先支持 GitHub PR Comment 或 CLI 入口，再扩展到 Git Hook、GitHub Actions 和 AI Coding Skill。
-
-## 核心功能规划
-
-- PR 变更总结：概括本次 PR 修改了哪些模块和行为。
-- 风险代码识别：发现可能的空指针、异常处理、接口兼容性、性能、敏感信息和可维护性风险，可定位到具体行号和代码片段。
-- Review 建议生成：给出可执行的修改建议、示例修复，并标注风险等级和相关文件。
-- 报告展示：通过端到端 API 和 Web Demo 页面展示分析结果，风险点和建议可附带代码证据和示例修复。
+- **PR 变更总结**：概括本次 PR 修改了哪些模块和行为。
+- **风险代码识别**：发现可能的空指针、异常处理、接口兼容性、安全、性能、敏感信息和可维护性风险。
+- **Review 建议生成**：给出可执行的修改建议、示例修复，并标注风险等级和相关文件。
+- **证据片段展示**：风险点和建议可附带代码片段、行号和示例修复，便于未来 IDE 插件定位。
+- **本地 Diff Review**：支持开发者提交前粘贴 `git diff`，不用先创建 GitHub PR。
+- **上下文模式选择**：FAST 模式更快更省 token；DEEP 模式适合较大 diff，并支持分批 Review。
+- **合并风险分析**：基于 changed files 识别依赖、配置、安全、公开接口、CI、测试覆盖等合并前风险。
+- **多入口复用**：Web、REST API、CLI 复用同一套后端 Review 服务。
 
 ## 当前开发进度
 
@@ -51,19 +91,6 @@
 - 已完成 DEEP 分批 Review 能力：当 DEEP 模式下 diff 规模较大时，系统会将变更拆成多个批次分别调用模型，再由后端合并风险点、建议和最高风险等级，降低超大 PR 因上下文限制漏掉关键信息的概率。
 - 已完成合并风险分析：基于 changed files 进行确定性规则判断，识别依赖/构建、配置、安全/权限、公开接口、CI/部署、测试缺失和大规模变更等合并前风险，辅助判断 PR 是否适合进入 main。
 - 已完成轻量 CLI 入口：同一个 Spring Boot Jar 支持 `--cli` 模式，可直接分析 GitHub PR 或从标准输入读取本地 diff，验证后端 Review 能力可脱离 Web 页面复用。
-
-## 后续优化计划
-
-本项目后续不会优先堆叠账号、历史记录、复杂后台等平台功能，而会继续围绕“开发者提交前和 PR 流程中的轻量 Review 工具”演进。
-
-优先级规划：
-
-1. **风险定位增强**：在风险点和 Review 建议中补充代码片段、问题原因、修改建议和示例修复。未来 IDEA 插件可基于 `filePath + lineNumber + codeSnippet` 直接定位到代码。
-2. **错误诊断兜底**：为 DeepSeek API、GitHub token、GitHub API、网络连接、模型 JSON 解析失败等场景提供稳定错误码和下一步处理建议。GitHub API 不可用时，引导用户改用本地 Diff Review。
-3. **模型可替换设计**（已完成 Provider 抽象）：当前选择 DeepSeek 是出于国内接入便利性、性价比和比赛复现成本考虑。已通过 `AiReviewModelClient` 接口完成模型 Provider 抽象，业务编排层不依赖具体模型实现。后续可按需新增 OpenAI-compatible、Claude、Gemini 等 Provider。国外模型可优先直连官方 API，网络或账号受限时可通过合规 API 网关或代理转发接入，但真实密钥仍只保存在环境变量中。
-4. **多端工具封装**：在本地 Diff Review 基础上优先扩展 CLI，例如 `git diff main...HEAD | ai-pr-review analyze-diff`；随后再考虑 AI Coding Skill、浏览器插件和 IDEA 插件。IDEA 插件会放在核心接口稳定之后实现，避免过早增加端侧复杂度。
-
-详细路线图已整合在本文的“后续优化计划”和“后续扩展方向”中。
 
 ## 技术选型
 
@@ -160,7 +187,7 @@ AI PR Review 场景对模型有以下核心要求：
 Java 并不会限制工具形态。当前 Spring Boot 服务可以继续作为核心分析引擎，同时向多个轻量入口封装：
 
 - **可执行 Jar**：通过 Spring Boot 打包为 fat jar，用户配置环境变量后执行 `java -jar ai-pr-review.jar` 即可启动。
-- **CLI 命令行**：后续可引入 picocli 等轻量库，提供 `ai-pr-review analyze <pr-url>`，适合本地脚本、服务器和 CI 环境。
+- **CLI 命令行**：当前已支持 `--cli` 模式，可分析 PR URL、stdin diff 和 patch 文件；后续可再封装为独立 `ai-pr-review` 命令。
 - **Docker 镜像**：通过 `docker run --env-file .env ai-pr-review` 运行，减少本机 JDK/Maven 差异。
 - **GitHub PR Comment**：分析完成后把 Review 报告发布到 PR 评论区，让结果留在开发协作现场，而不是只停留在 Web 页面。
 - **AI Coding Skill**：在 Codex、Claude Code 等 AI Coding 流程中，提交或合并前自动调用 CLI 或后端 API，让 AI 写代码后的 Review 成为工作流的一部分。
@@ -224,13 +251,15 @@ Web Demo 页面展示（已完成）
 
 当前 Web Demo 选择原生 HTML / CSS / JS 模块化结构，不引入 React / Vue / Vite，理由：
 
-- 当前目标是比赛 Demo 和最小可用工具入口，页面只承担输入 PR 链接、调用 API、展示报告一条主流程。
+- 当前目标是比赛 Demo 和最小可用工具入口，页面只承担输入 PR 链接、本地 diff、临时凭证、模式选择、调用 API、展示报告这一条主流程。
 - Spring Boot 已能直接托管静态资源，无需新增前端构建、部署和依赖说明。
 - 原生方案能降低评委运行和理解成本，也减少提交时由前端依赖带来的环境风险。
 - 页面采用清晰模块边界：API 调用（`js/api.js`）、渲染层（`js/render.js`）、状态流（`js/app.js`）和样式（`styles.css`）分离，避免写成一次性大文件。
 - 不引入外部 CDN、远程字体、远程图片或第三方前端库，完全离线可用。
 
-**未来升级条件**：当出现报告历史、规则配置、团队空间、复杂导航、可视化图表或多页面工作台时，再单独开 PR 迁移为 Vue/React + Vite 独立前端工程。届时多端入口（CLI/IDE 插件等）的展示层各自独立，但仍复用同一后端 API。
+这个取舍不是忽视前端体验，而是刻意让作品更像开发者工具：页面负责快速触发和展示结果，核心价值放在后端 Review 链路、上下文策略、模型调用、错误诊断和多入口复用上。
+
+**未来升级条件**：当出现报告历史、规则配置、团队空间、复杂导航、可视化图表或多页面工作台时，再单独开 PR 迁移为 Vue/React + Vite 独立前端工程。届时多端入口（Web/CLI/IDE 插件/浏览器插件）的展示层各自独立，但仍复用同一后端 API。
 
 ## 环境变量
 
@@ -965,19 +994,35 @@ analysis 缺失返回 400：
 
 本项目为比赛作品，核心流程、后端接口、PR 分析逻辑、AI Review 提示词设计、报告结构和页面展示将围绕本次题目自主完成。使用的第三方框架和外部 API 会在本文档中列明。
 
-## Demo 视频
+## 未来规划
 
-Demo 视频已上传，包含语音讲解、主要功能演示和效果展示。
+本项目后续不会优先堆叠账号体系、复杂后台和重型管理页面，而会继续围绕“开发者工作流里的轻量 AI Review 工具”演进。
 
-视频链接：
+### 近期：把 CLI 做成真正顺手的提交前工具
 
-[AI PR Review Assistant 作品演示 - Bilibili](https://www.bilibili.com/video/BV1mLVS6pEFb/?vd_source=23f18414ce426ca920d413ee5719cb9b)
+- 封装独立命令，例如 `ai-pr-review analyze <pr-url>` 和 `git diff | ai-pr-review analyze-diff`。
+- 支持将 Markdown 报告输出到文件，便于归档或粘贴到 PR。
+- 增加 Git Hook 示例，在 commit 或 push 前自动触发本地 diff review。
+- 增加失败策略配置，例如检测到 HIGH 风险时返回非 0 exit code，方便 CI 拦截。
 
-## 后续扩展方向
+### 中期：进入开发者日常工作入口
 
-- 支持 GitLab、Gitee 等更多代码平台。
-- 接入 GitHub App 或 Webhook，自动触发 PR 分析。
-- 支持将 Review 建议自动评论到 PR。
-- 引入项目规则库，支持团队代码规范和自定义 Review 策略。
-- 增强上下文获取能力，结合相关类、接口、配置文件和调用链降低误报。
-- 接入 CI 流水线，在合并前输出风险报告。
+- **IDE 插件**：基于报告中的 `filePath + lineNumber + codeSnippet`，在 IntelliJ IDEA 中直接定位风险代码。
+- **浏览器插件**：在 GitHub PR 页面读取当前 URL，一键调用后端分析并展示结果。
+- **GitHub Actions / Bot**：在 PR 创建或更新时自动分析，并把结果评论回 PR。
+- **AI Coding Skill**：在 Codex、Claude Code 等 AI Coding 流程中，提交和合并前自动调用 CLI 或 API 做 Review。
+
+### 远期：提升准确性和团队适配能力
+
+- 支持 GitLab、Gitee 等更多代码托管平台。
+- 增强上下文获取：结合相关类、接口定义、配置文件、测试结果和调用链，降低误报和漏报。
+- 引入团队规则库：支持团队代码规范、安全规则、接口兼容规则和自定义 Prompt。
+- 接入更多模型 Provider：在 DeepSeek 之外扩展 OpenAI-compatible、Claude、Gemini 等模型，并按成本、速度、准确性选择策略。
+- 在需要历史报告、团队协作、审计追踪时，再引入数据库和缓存层，而不是在当前轻量工具阶段提前增加环境负担。
+
+### 不优先做的事情
+
+- 不优先做登录注册、团队空间、历史记录大后台。
+- 不为了“功能看起来多”强行加入数据库、Redis 或复杂前端工程。
+- 不在核心 Review 链路稳定前提前投入完整 IDEA 插件或浏览器插件商店发布。
+- 不承诺 AI 能完全替代人工 Review、CI 和测试；本项目定位是“辅助发现风险和提升审查效率”。
