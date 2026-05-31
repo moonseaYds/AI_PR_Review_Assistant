@@ -47,6 +47,7 @@
 - 已完成错误诊断与兜底策略：后端返回稳定错误码、建议处理方式和是否可重试；前端展示结构化错误信息。GitHub API 不可用时引导切换到本地 Diff Review。
 - 已完成 Review Context 策略选择，支持 FAST 和 DEEP 两种模式。FAST 按风险权重优先保留关键文件上下文，适合快速、低 token 成本的日常自查；DEEP 使用更宽上下文预算，适合大 PR 或关键模块的更完整分析。
 - 已完成 DEEP 分批 Review 能力：当 DEEP 模式下 diff 规模较大时，系统会将变更拆成多个批次分别调用模型，再由后端合并风险点、建议和最高风险等级，降低超大 PR 因上下文限制漏掉关键信息的概率。
+- 已完成合并风险分析：基于 changed files 进行确定性规则判断，识别依赖/构建、配置、安全/权限、公开接口、CI/部署、测试缺失和大规模变更等合并前风险，辅助判断 PR 是否适合进入 main。
 
 ## 后续优化计划
 
@@ -56,9 +57,8 @@
 
 1. **风险定位增强**：在风险点和 Review 建议中补充代码片段、问题原因、修改建议和示例修复。未来 IDEA 插件可基于 `filePath + lineNumber + codeSnippet` 直接定位到代码。
 2. **错误诊断兜底**：为 DeepSeek API、GitHub token、GitHub API、网络连接、模型 JSON 解析失败等场景提供稳定错误码和下一步处理建议。GitHub API 不可用时，引导用户改用本地 Diff Review。
-3. **合并风险分析**：在报告中增加合并风险维度，例如依赖变更、配置变更、公共接口变更、测试缺失等。后续 CLI 或 CI 模式可结合 `mvn test`、GitHub Actions 状态判断合并后主分支是否存在运行风险。
-4. **模型可替换设计**：当前选择 DeepSeek 是出于国内接入便利性、性价比和比赛复现成本考虑。后续会抽象模型客户端，支持 OpenAI-compatible 模型、Claude、Gemini 等。国外模型可优先直连官方 API，网络或账号受限时可通过合规 API 网关或代理转发接入，但真实密钥仍只保存在环境变量中。
-5. **多端工具封装**：在本地 Diff Review 基础上优先扩展 CLI，例如 `git diff main...HEAD | ai-pr-review analyze-diff`；随后再考虑 AI Coding Skill、浏览器插件和 IDEA 插件。IDEA 插件会放在核心接口稳定之后实现，避免过早增加端侧复杂度。
+3. **模型可替换设计**：当前选择 DeepSeek 是出于国内接入便利性、性价比和比赛复现成本考虑。后续会抽象模型客户端，支持 OpenAI-compatible 模型、Claude、Gemini 等。国外模型可优先直连官方 API，网络或账号受限时可通过合规 API 网关或代理转发接入，但真实密钥仍只保存在环境变量中。
+4. **多端工具封装**：在本地 Diff Review 基础上优先扩展 CLI，例如 `git diff main...HEAD | ai-pr-review analyze-diff`；随后再考虑 AI Coding Skill、浏览器插件和 IDEA 插件。IDEA 插件会放在核心接口稳定之后实现，避免过早增加端侧复杂度。
 
 详细路线图见 `docs/DEVELOPMENT_PLAN.md`。
 
@@ -661,12 +661,44 @@ Content-Type: application/json
   "batchReview": false,
   "reviewBatches": 1,
   "batchStrategy": null,
+  "mergeRisk": {
+    "riskLevel": "LOW",
+    "summary": "未检测到明显合并风险，仍建议在合并前执行项目测试。",
+    "items": []
+  },
   "review": {
     "summary": "本次 PR 修复了登录模块的空指针问题，代码改动范围小、逻辑清晰。",
     "riskLevel": "LOW",
     "risks": [],
     "suggestions": [],
     "model": "deepseek-v4-flash"
+  }
+}
+```
+
+合并风险示例：
+
+```json
+{
+  "mergeRisk": {
+    "riskLevel": "HIGH",
+    "summary": "检测到 3 个合并风险信号，最高等级为 HIGH。请在合并前重点确认依赖、配置、权限、公开接口和测试覆盖。",
+    "items": [
+      {
+        "category": "依赖/构建",
+        "file": "pom.xml",
+        "level": "HIGH",
+        "reason": "构建或依赖文件发生变更，可能影响 main 分支编译、打包或运行时依赖解析。",
+        "suggestion": "建议合并前执行 mvn test / mvn package，并关注依赖版本冲突、插件版本和 Java 版本兼容性。"
+      },
+      {
+        "category": "测试覆盖",
+        "file": "src/test",
+        "level": "MEDIUM",
+        "reason": "本次 PR 修改了生产代码，但未检测到测试文件变更，合入 main 后缺少自动化回归保护。",
+        "suggestion": "建议补充单元测试、Controller 层测试或在 PR 描述中说明已有测试命令与覆盖范围。"
+      }
+    ]
   }
 }
 ```
@@ -723,9 +755,15 @@ PR 无变更文件返回 400：
 说明：
 
 - 该接口一次性完成从 PR 链接到 AI Review 报告的完整流程。
-- 响应同时包含 PR 元信息（owner、repo、title、author、state、分支）、变更统计、Review Context 模式、分批状态和截断信息。
+- 响应同时包含 PR 元信息（owner、repo、title、author、state、分支）、变更统计、Review Context 模式、分批状态、合并风险和截断信息。
 - 不返回完整 patch 内容，避免响应过大。
 - 所有分段接口（`parse-pr-url`、`fetch-pr`、`build-diff-context`、`ai-review`）仍可单独调用。
+
+合并风险分析说明：
+
+- 合并风险分析是确定性规则，不额外调用模型，响应速度稳定。
+- 主要识别依赖/构建、配置、安全/权限、公开接口、CI/部署、测试缺失和大规模变更。
+- 它不替代 `mvn test`、CI 检查或人工 Review，但能在合并前提示哪些文件最值得复查。
 
 ### 本地 Diff Review
 

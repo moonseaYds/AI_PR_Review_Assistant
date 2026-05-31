@@ -249,6 +249,10 @@ class StaticPageTest {
                 "render.js should display batch review state");
         assertTrue(body.contains("batchStrategy"),
                 "render.js should display batch review strategy");
+        assertTrue(body.contains("renderMergeRisk"),
+                "render.js should display merge risk report");
+        assertTrue(body.contains("合并风险"),
+                "render.js should contain merge risk label");
         assertTrue(body.contains("Diff 已截断"),
                 "render.js should still display truncation status");
     }

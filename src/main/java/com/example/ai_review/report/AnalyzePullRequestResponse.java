@@ -23,6 +23,7 @@ public record AnalyzePullRequestResponse(
         boolean batchReview,
         int reviewBatches,
         String batchStrategy,
+        MergeRiskReport mergeRisk,
         ReviewReport review
 ) {
     public AnalyzePullRequestResponse(String owner,
@@ -44,7 +45,32 @@ public record AnalyzePullRequestResponse(
                                       ReviewReport review) {
         this(owner, repo, pullNumber, title, author, state, baseBranch, headBranch, totalFiles,
                 totalAdditions, totalDeletions, totalChanges, truncated, truncationReason,
-                analysisMode, contextStrategy, false, 1, null, review);
+                analysisMode, contextStrategy, false, 1, null, null, review);
+    }
+
+    public AnalyzePullRequestResponse(String owner,
+                                      String repo,
+                                      int pullNumber,
+                                      String title,
+                                      String author,
+                                      String state,
+                                      String baseBranch,
+                                      String headBranch,
+                                      int totalFiles,
+                                      int totalAdditions,
+                                      int totalDeletions,
+                                      int totalChanges,
+                                      boolean truncated,
+                                      String truncationReason,
+                                      AnalysisMode analysisMode,
+                                      String contextStrategy,
+                                      boolean batchReview,
+                                      int reviewBatches,
+                                      String batchStrategy,
+                                      ReviewReport review) {
+        this(owner, repo, pullNumber, title, author, state, baseBranch, headBranch, totalFiles,
+                totalAdditions, totalDeletions, totalChanges, truncated, truncationReason,
+                analysisMode, contextStrategy, batchReview, reviewBatches, batchStrategy, null, review);
     }
 
     public AnalyzePullRequestResponse(String owner,
@@ -65,6 +91,6 @@ public record AnalyzePullRequestResponse(
         this(owner, repo, pullNumber, title, author, state, baseBranch, headBranch, totalFiles,
                 totalAdditions, totalDeletions, totalChanges, truncated, truncationReason,
                 AnalysisMode.FAST, "FAST 模式：优先保留高风险文件上下文",
-                false, 1, null, review);
+                false, 1, null, null, review);
     }
 }

@@ -42,6 +42,8 @@ public class ReviewCommentFormatter {
             md.append("### 风险等级\n\n");
             md.append(escape(review.riskLevel() != null ? review.riskLevel().name() : "UNKNOWN")).append("\n\n");
 
+            appendMergeRisk(md, response.mergeRisk());
+
             if (review.risks() != null && !review.risks().isEmpty()) {
                 md.append("### 风险点\n\n");
                 int i = 1;
@@ -88,6 +90,31 @@ public class ReviewCommentFormatter {
         md.append("> 本评论由 AI PR Review Assistant 自动生成，仅作为辅助审查建议，不替代人工 Code Review。\n");
 
         return md.toString();
+    }
+
+    private void appendMergeRisk(StringBuilder md, MergeRiskReport mergeRisk) {
+        if (mergeRisk == null) return;
+
+        md.append("### 合并风险\n\n");
+        md.append("- 最高等级：")
+                .append(escape(mergeRisk.riskLevel() != null ? mergeRisk.riskLevel().name() : "LOW"))
+                .append("\n");
+        md.append("- 总结：").append(escape(mergeRisk.summary())).append("\n\n");
+
+        if (mergeRisk.items() == null || mergeRisk.items().isEmpty()) {
+            md.append("未检测到明显合并风险。\n\n");
+            return;
+        }
+
+        int i = 1;
+        for (MergeRiskItem item : mergeRisk.items()) {
+            md.append(i).append(". **").append(escape(item.level()))
+                    .append(" - ").append(escape(item.category())).append("**\n");
+            md.append("   - 文件：").append(escape(item.file())).append("\n");
+            md.append("   - 原因：").append(escape(item.reason())).append("\n");
+            md.append("   - 建议：").append(escape(item.suggestion())).append("\n\n");
+            i++;
+        }
     }
 
     private void appendCodeBlock(StringBuilder md, String label, String file, String content) {
