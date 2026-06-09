@@ -377,6 +377,12 @@ git add <changed-files>
 scripts/ai-pr-review-staged.sh
 ```
 
+路演或需要归档时，可以同时保存 Markdown 报告：
+
+```bash
+AI_PR_REVIEW_OUTPUT=ai-review-report.md scripts/ai-pr-review-staged.sh
+```
+
 安装为本地 `pre-commit` hook：
 
 ```bash
@@ -396,12 +402,14 @@ AI_PR_REVIEW_ENFORCE=1 git commit -m "feat: example"
 AI_PR_REVIEW_SKIP=1 git commit -m "chore: skip ai review"
 AI_PR_REVIEW_MODE=DEEP git commit -m "feat: deep review"
 AI_PR_REVIEW_JAR=target/Ai_Review-0.0.1-SNAPSHOT.jar git commit -m "feat: custom jar"
+AI_PR_REVIEW_OUTPUT=ai-review-report.md git commit -m "feat: save review report"
 ```
 
 说明：
 
 - `.git/hooks` 目录不会被 Git 提交，因此仓库中只提供 `scripts/pre-commit-ai-review.example.sh` 示例。
 - Git Hook 入口不会保存 API Key 或 GitHub Token，模型密钥仍通过环境变量、`.env` 或本地运行环境提供。
+- 默认只在终端输出报告；设置 `AI_PR_REVIEW_OUTPUT` 后才会额外生成 Markdown 文件，避免每次提交都污染工作区。
 - 这个入口的目标不是替代人工 Review，而是在代码进入 commit 前增加一次低成本风险提示。
 
 ## 当前接口
