@@ -24,6 +24,8 @@ JAR_PATH="${AI_PR_REVIEW_JAR:-target/Ai_Review-0.0.1-SNAPSHOT.jar}"
 MODE="${AI_PR_REVIEW_MODE:-FAST}"
 ENFORCE="${AI_PR_REVIEW_ENFORCE:-0}"
 OUTPUT_PATH="${AI_PR_REVIEW_OUTPUT:-}"
+OUTPUT_FORMAT="${AI_PR_REVIEW_OUTPUT_FORMAT:-markdown}"
+OUTPUT_FORMAT_NORMALIZED="$(printf '%s' "$OUTPUT_FORMAT" | tr '[:upper:]' '[:lower:]')"
 TMP_DIFF=""
 TMP_REPORT=""
 
@@ -60,7 +62,7 @@ fi
 echo "[ai-pr-review] 正在分析 staged diff，模式：$MODE"
 echo "[ai-pr-review] 如需跳过本次检查，可设置 AI_PR_REVIEW_SKIP=1。"
 if [ -n "$OUTPUT_PATH" ]; then
-  echo "[ai-pr-review] Review 报告将同时保存到：$OUTPUT_PATH"
+  echo "[ai-pr-review] Review 报告将同时保存到：${OUTPUT_PATH}，格式：${OUTPUT_FORMAT}"
 fi
 
 TMP_DIFF="$(mktemp)"
@@ -70,7 +72,9 @@ if [ -n "$OUTPUT_PATH" ]; then
   TMP_REPORT="$(mktemp)"
   run_review > "$TMP_REPORT"
   STATUS=$?
-  cat "$TMP_REPORT"
+  if [ "$OUTPUT_FORMAT_NORMALIZED" != "html" ]; then
+    cat "$TMP_REPORT"
+  fi
 else
   run_review
   STATUS=$?
