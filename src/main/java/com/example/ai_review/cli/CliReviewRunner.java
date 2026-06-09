@@ -18,14 +18,14 @@ public class CliReviewRunner implements ApplicationRunner {
 
     private final ApplicationContext applicationContext;
     private final ReviewAnalysisService reviewAnalysisService;
-    private final CliReportFormatter formatter;
+    private final CliReportRenderer reportRenderer;
 
     public CliReviewRunner(ApplicationContext applicationContext,
                            ReviewAnalysisService reviewAnalysisService,
-                           CliReportFormatter formatter) {
+                           CliReportRenderer reportRenderer) {
         this.applicationContext = applicationContext;
         this.reviewAnalysisService = reviewAnalysisService;
-        this.formatter = formatter;
+        this.reportRenderer = reportRenderer;
     }
 
     @Override
@@ -41,7 +41,7 @@ public class CliReviewRunner implements ApplicationRunner {
                 System.out.println(usage());
             } else {
                 AnalyzePullRequestResponse response = analyze(cliArguments);
-                System.out.println(formatter.format(response));
+                System.out.println(reportRenderer.format(response));
             }
         } catch (Exception ex) {
             exitCode = 1;
@@ -88,6 +88,7 @@ public class CliReviewRunner implements ApplicationRunner {
 
                 Notes:
                   - API Key 和 GitHub Token 请通过环境变量或 .env 配置，不建议放入命令行参数。
+                  - 默认输出 Markdown；设置 AI_PR_REVIEW_OUTPUT_FORMAT=html 可输出静态 HTML 报告。
                   - FAST 模式响应更快、成本更低；DEEP 模式适合更大的 diff，但响应更慢。
                 """;
     }
