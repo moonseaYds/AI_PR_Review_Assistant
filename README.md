@@ -435,7 +435,7 @@ AI_PR_REVIEW_OUTPUT_FORMAT=html AI_PR_REVIEW_OUTPUT=ai-review-report.html git co
 可复制提示词：
 
 ```text
-请使用 AI PR Review Assistant 的 AI Coding Skill，在提交前检查本次改动，并生成 HTML Review 报告。如果存在 HIGH 风险，请先给出修复建议并暂停提交。
+请使用 AI PR Review Assistant 的 AI Coding Skill，在提交前检查本次改动，并生成 HTML Review 报告。报告生成后请总结风险，并让我选择：修复后重新 Review、回滚本轮修改、强制进入 PR 阶段，或暂停。
 ```
 
 更完整的提示词：
@@ -448,7 +448,10 @@ AI_PR_REVIEW_OUTPUT_FORMAT=html AI_PR_REVIEW_OUTPUT=ai-review-report.html git co
 4. 调用 scripts/ai-pr-review-staged.sh，并设置 AI_PR_REVIEW_OUTPUT=ai-review-report.html、AI_PR_REVIEW_OUTPUT_FORMAT=html。
 5. 生成报告后总结风险等级和关键建议。
 6. 如果存在 HIGH 风险，先暂停提交并给出修复建议。
-7. 如果风险可接受，再等待我明确说进入 PR 阶段。
+7. 然后让我选择：修复后重新 Review、回滚本轮修改、强制进入 PR 阶段、或暂停。
+8. 如果我选择回滚，必须先二次确认，并且只能回滚本轮相关文件。
+9. 如果我选择强制进入 PR 阶段，请在 PR 描述中保留风险提示。
+10. 只有当我明确选择进入 PR 阶段时，才提交、推送并创建 PR。
 ```
 
 ## 当前接口
